@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Untitled Sampler Machine</title>
+    <style>
+      body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background: #0b0d10; color: #e5e7eb; }
+      .app { display: grid; grid-template-columns: 320px 1fr; gap: 16px; padding: 16px; }
+      .panel { background: #111418; border: 1px solid #1f242b; border-radius: 12px; padding: 12px; }
+      .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+      .pad { aspect-ratio: 1 / 1; border-radius: 10px; border: 1px solid #2a323b; display: grid; place-items: center; cursor: pointer; user-select: none; transition: transform .06s; }
+      .pad.active { transform: scale(0.98); outline: 2px solid #7dd3fc44; }
+      .transport { display: flex; gap: 8px; align-items: center; }
+      button { background: #1c2128; color: #e5e7eb; border: 1px solid #2a323b; border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+      input[type="range"] { width: 100%; }
+      .seq { display: grid; grid-template-columns: repeat(16, 1fr); gap: 4px; }
+      .step { height: 28px; border-radius: 4px; border: 1px solid #2a323b; cursor: pointer; display: grid; place-items: center; }
+      .step.on { background: #10b98133; border-color: #10b98166; }
+      .row { display: grid; grid-template-columns: 90px 1fr; gap: 8px; align-items: center; }
+      .small { font-size: 12px; color: #9ca3af; }
+      .rec { color: #ef4444; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,13 @@
+[project]
+name = "usm-backend"
+version = "0.1.0"
+description = "Untitled Sampler Machine backend"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.111.0",
+  "uvicorn[standard]>=0.30.0"
+]
+
+[tool.uvicorn]
+factory = false
+port = 8000
