@@ -2,11 +2,7 @@
   "compilerOptions": {
     "target": "ES2021",
     "useDefineForClassFields": true,
-    "lib": [
-      "ES2021",
-      "DOM",
-      "DOM.Iterable"
-    ],
+    "lib": ["ES2021", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
     "moduleResolution": "bundler",
@@ -15,14 +11,11 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "strict": true,
+    "types": ["vite/client"],
     "baseUrl": ".",
     "paths": {
-      "@shared/*": [
-        "../shared/*"
-      ]
+      "@shared/*": ["../shared/*"]
     }
   },
-  "include": [
-    "src"
-  ]
+  "include": ["src", "../shared/**/*.ts"]
 }
