@@ -11,29 +11,52 @@ A minimal, extensible scaffold for a browser‑based drum/sampler workstation wi
 - **Frontend**: React + Vite + TypeScript, Web Audio API (AudioWorklets optional stub).
 - **State**: Zustand.
 - **Backend**: FastAPI (Python) for sample upload, project save/load.
-- **Shared**: Type definitions.
+- **Shared**: Type definitions consumed by the frontend.
+
+## Project Structure
+```
+untitled-sampler-machine/
+├── frontend/
+│   ├── index.html
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── vite.config.ts
+│   └── src/
+│       ├── App.tsx
+│       ├── main.tsx
+│       ├── store.ts
+│       ├── audio/
+│       └── components/
+├── backend/
+│   ├── main.py
+│   └── pyproject.toml
+└── shared/
+    └── types.ts
+```
 
 ## Quickstart
 ### Frontend
 ```bash
 cd frontend
-npm i
+npm install
 npm run dev
 ```
+
 ### Backend
 ```bash
-cd ../backend
-uvicorn app.main:app --reload
+cd backend
+uvicorn main:app --reload
 ```
-Static sample storage is at `backend/app/storage/samples` (auto‑created).
+
+Static sample storage is created automatically at `backend/storage`.
 
 ## High‑level Architecture
-- `Engine` — single AudioContext, graph factory, tempo/clock.
-- `Scheduler` — look‑ahead scheduler (25ms default), schedules steps at sample‑accurate times.
-- `SamplePlayer` — per‑tile buffer player with ADSR‑like envelope.
-- `store` — global app state (pads, patterns, transport).
-- `Sequencer` — UI for steps; extend/shrink pattern length.
-- `SampleRecorder` — microphone record -> WAV -> assign to selected pad.
+- `frontend/src/audio/Engine` — single AudioContext, graph factory, tempo/clock.
+- `frontend/src/audio/Scheduler` — look‑ahead scheduler (25ms default), schedules steps at sample‑accurate times.
+- `frontend/src/audio/SamplePlayer` — per‑tile buffer player with ADSR‑like envelope.
+- `frontend/src/store` — global app state (pads, patterns, transport).
+- `frontend/src/components/Sequencer` — UI for steps; extend/shrink pattern length.
+- `frontend/src/components/SampleRecorder` — microphone record -> WAV -> assign to selected pad.
 - Backend offers `/samples` (upload/list) and `/projects` (save/load).
 
 ## Notes
