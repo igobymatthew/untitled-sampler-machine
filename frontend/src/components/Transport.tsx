@@ -1,31 +1,31 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect } from 'react'
 import { useStore } from '../store'
 import { Scheduler } from '../audio/Scheduler'
 import { engine } from '../audio/Engine'
-import { playBuffer, decodeArrayBuffer } from '../audio/SamplePlayer'
+import { playBuffer } from '../audio/SamplePlayer'
+import { getBuffer } from '../audio/BufferStore'
 
-const sched = new Scheduler((when, step)=>{
+const sched = new Scheduler((when, stepInBar, absoluteStep)=>{
   // UI step cursor
-  useStore.setState({ currentStep: step })
+  useStore.setState({ currentStep: stepInBar })
   // Trigger pads that have events on this step
   const { pattern, pads } = useStore.getState()
-  const ids = pattern.steps[step] || []
+  const ids = pattern.steps[absoluteStep] || []
   ids.forEach(id=>{
     const p = pads.find(pp=>pp.id===id)
-    if (!p || !(window as any).__buffers?.[id]) return
-    playBuffer((window as any).__buffers[id], when, {
+    const buffer = getBuffer(id)
+    if (!p || !buffer) return
+    playBuffer(buffer, when, {
       gain: p.gain, attack: p.attack, decay: p.decay, startOffset: p.startOffset, loop: p.loop
     })
   })
 })
 
-;(window as any).__buffers = (window as any).__buffers || {}
-
 export function TransportBar() {
   const t = useStore(s=>s.transport)
   const setTransport = useStore(s=>s.setTransport)
 
-  useEffect(()=>{ sched.set(t.bpm, t.stepsPerBar) }, [t.bpm, t.stepsPerBar])
+  useEffect(()=>{ sched.set(t.bpm, t.stepsPerBar, t.bars) }, [t.bpm, t.stepsPerBar, t.bars])
 
   return (
     <div className="transport">
