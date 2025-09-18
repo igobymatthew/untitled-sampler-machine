@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { TransportBar } from './Transport';
 import { useStore } from '../store';
-import { vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../store');
 
@@ -10,8 +10,8 @@ describe('TransportBar', () => {
   const setBars = vi.fn();
 
   const mockState = {
-    transport: { playing: false, bpm: 120, bars: 4 },
-    pattern: { steps: [] },
+    transport: { playing: false, bpm: 120, bars: 4, stepsPerBar: 16, swing: 0 },
+    pattern: { steps: {} },
     pads: [],
     setTransport,
     setBars,
