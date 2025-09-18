@@ -1,11 +1,52 @@
 # Untitled Sampler Machine (USM)
 
-A minimal, extensible scaffold for a browser‑based drum/sampler workstation with:
-- Per‑tile sample control (gain, start offset, attack/decay, one‑shot/loop).
-- Global transport: tempo, start/stop, loop length, quantized scheduling.
-- Pattern sequencer with extend/shrink loops.
-- Record directly into a tile (via microphone) and auto‑assign.
-- Project/save API scaffolding.
+A minimal, extensible scaffold for a browser‑based drum/sampler workstation. The
+project ships with a working React client, a FastAPI backend, and a small set of
+shared types so you can focus on extending sampler behaviour instead of wiring
+up basics from scratch.
+
+## Core Functionality
+
+### Pad grid and sample management
+- Eight velocity‑agnostic pads are provided out of the box (see
+  `frontend/src/components/PadGrid.tsx`).
+- Each pad exposes gain, attack, decay, start offset, looping and mute controls
+  through the global Zustand store, making it easy to tweak per‑tile playback
+  characteristics.
+- Users can drop an audio file onto a pad or load from the file picker. Files
+  are decoded in the browser (`decodeArrayBuffer`) and cached per pad for
+  immediate triggering (`playBuffer`).
+- Double‑clicking a pad will fire the loaded buffer immediately so you can audition
+  edits without starting the transport.
+
+### Transport, scheduler and sequencing
+- The global transport bar manages play/stop, BPM and loop length controls; it
+  drives a look‑ahead scheduler that keeps the sequencer sample accurate even if
+  the UI stutters (`frontend/src/audio/Scheduler.ts`).
+- A sequencer grid lets you toggle steps per pad. The highlighted step cursor
+  follows the current quantized position so you always know where you are in the
+  loop.
+- Pattern length automatically expands or contracts when the number of bars
+  changes, and the store exposes helpers (`setBars`, `toggleStep`) for future UI
+  enhancements.
+
+### Recording straight into pads
+- The sample recorder component (`SampleRecorder.tsx`) captures microphone input
+  with the MediaRecorder API and assigns the result to the currently selected pad.
+- Recordings are stored client‑side by default, but the wiring is ready for you
+  to post the blob to the backend for persistence or conversion.
+
+### Backend project and sample lifecycle
+- `/samples/upload` accepts either multipart uploads or raw payloads with an
+  `x-filename` header, saves the file under `backend/storage/samples`, and returns
+  an ID + URL that the frontend can stash.
+- `/samples/list` exposes saved samples; `/projects/save` and `/projects/{pid}`
+  persist and retrieve project JSON payloads respectively, enabling lightweight
+  session storage.
+- `/projects/{pid}/export` renders the stored pattern into a WAV loop by mixing
+  pad buffers according to BPM, pattern length and per‑pad gain/offset settings.
+  The export is written to `backend/storage/exports` and streamed back as a file
+  download.
 
 ## Tech
 - **Frontend**: React + Vite + TypeScript, Web Audio API (AudioWorklets optional stub).
@@ -49,6 +90,35 @@ uvicorn main:app --reload
 ```
 
 Static sample storage is created automatically at `backend/storage`.
+
+## Testing
+
+Both the backend and frontend ship with focused tests that exercise their core
+behaviour.
+
+### Backend (pytest)
+- The suite lives in `backend/tests`. The `test_loop_export.py` test spins up the
+  FastAPI app with an isolated storage directory, uploads a generated sine wave,
+  saves a miniature project and asserts that exporting multiple loop cycles writes
+  a correctly‑sized mono WAV file. This gives you confidence that uploads,
+  persistence and offline rendering work together.
+- Run the tests from the repository root or the `backend/` directory:
+
+  ```bash
+  cd backend
+  pytest
+  ```
+
+### Frontend (Vitest + Testing Library)
+- Component tests live alongside their sources. For example,
+  `frontend/src/components/Transport.test.tsx` verifies that the transport bar
+  renders correctly, toggles play/stop state and reacts to BPM slider changes.
+- Install dependencies if you have not already, then run:
+
+  ```bash
+  cd frontend
+  npm test
+  ```
 
 ## High‑level Architecture
 - `frontend/src/audio/Engine` — single AudioContext, graph factory, tempo/clock.
