@@ -5,7 +5,9 @@ description = "Untitled Sampler Machine backend"
 requires-python = ">=3.10"
 dependencies = [
   "fastapi>=0.111.0",
-  "uvicorn[standard]>=0.30.0"
+  "uvicorn[standard]>=0.30.0",
+  "python-multipart>=0.0.9",
+  "pytest>=8.3.0"
 ]
 
 [tool.uvicorn]
