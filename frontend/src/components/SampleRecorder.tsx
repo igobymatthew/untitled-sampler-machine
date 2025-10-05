@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Mic, Square } from 'lucide-react'
 import { useStore } from '../store'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export function SampleRecorder() {
   const sel = useStore(s => s.selectedPadId)
@@ -42,14 +43,16 @@ export function SampleRecorder() {
   }
 
   return (
-    <div className="text-white">
-      <div className="text-sm mb-2">Record into selected pad</div>
-      <div className="flex items-center gap-4">
+    <Card className="bg-glass-black shadow-neon-glow">
+      <CardHeader>
+        <CardTitle className="text-white">Record Sample</CardTitle>
+      </CardHeader>
+      <CardContent className="flex items-center gap-4">
         <Button
           variant="outline"
           onClick={startRec}
           disabled={!sel || recState === 'recording'}
-          className="bg-glass-white hover:bg-red-500 hover:shadow-neon-glow"
+          className="bg-glass-white text-white hover:bg-red-500 hover:shadow-neon-glow"
         >
           <Mic className="mr-2" />
           Record
@@ -58,16 +61,16 @@ export function SampleRecorder() {
           variant="outline"
           onClick={stopRec}
           disabled={recState !== 'recording'}
-          className="bg-glass-white hover:bg-brand-primary hover:shadow-neon-glow"
+          className="bg-glass-white text-white hover:bg-brand-primary hover:shadow-neon-glow"
         >
           <Square className="mr-2" />
           Stop
         </Button>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 text-white">
           {recState === 'recording' && <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />}
           <span className="text-sm">{sel ? `Target: ${sel}` : 'Select a pad'}</span>
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   )
 }

@@ -48,9 +48,9 @@ export function PadGrid() {
         return (
           <Card
             key={p.id}
-            className={`cursor-pointer bg-glass-black backdrop-blur-sm border-2 ${
+            className={`cursor-pointer bg-glass-black backdrop-blur-sm border-2 transition-all ${
               isSel ? 'border-brand-primary shadow-neon-glow' : 'border-gray-700'
-            }`}
+            } hover:border-brand-primary hover:shadow-neon-glow`}
             onClick={() => setSelected(p.id)}
             onDoubleClick={() => onTrigger(p.id)}
           >
