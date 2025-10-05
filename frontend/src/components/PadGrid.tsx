@@ -1,26 +1,32 @@
 import React from 'react'
+import { UploadCloud } from 'lucide-react'
 import { useStore } from '../store'
 import { engine } from '../audio/Engine'
 import { decodeArrayBuffer, playBuffer } from '../audio/SamplePlayer'
 import { getBuffer, setBuffer } from '../audio/BufferStore'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export function PadGrid() {
-  const pads = useStore(s=>s.pads)
-  const setPad = useStore(s=>s.setPad)
-  const selected = useStore(s=>s.selectedPadId)
-  const setSelected = useStore(s=>s.setSelectedPad)
+  const pads = useStore(s => s.pads)
+  const setPad = useStore(s => s.setPad)
+  const selected = useStore(s => s.selectedPadId)
+  const setSelected = useStore(s => s.setSelectedPad)
 
-  const onTrigger = async (id:string) => {
+  const onTrigger = async (id: string) => {
     await engine.resume()
-    const p = pads.find(p=>p.id===id)!
+    const p = pads.find(p => p.id === id)!
     const buf = getBuffer(id)
     if (!buf) return
     playBuffer(buf, engine.ctx.currentTime, {
-      gain: p.gain, attack: p.attack, decay: p.decay, startOffset: p.startOffset, loop: p.loop
+      gain: p.gain,
+      attack: p.attack,
+      decay: p.decay,
+      startOffset: p.startOffset,
+      loop: p.loop,
     })
   }
 
-  const onLoad = async (id:string, file:File) => {
+  const onLoad = async (id: string, file: File) => {
     const ab = await file.arrayBuffer()
     const buffer = await decodeArrayBuffer(ab)
     setBuffer(id, buffer)
@@ -30,29 +36,47 @@ export function PadGrid() {
         name: file.name,
         duration: buffer.duration,
         sampleRate: buffer.sampleRate,
-        url: URL.createObjectURL(file)
-      }
+        url: URL.createObjectURL(file),
+      },
     })
   }
 
   return (
-    <div className="grid">
-      {pads.map(p=>{
-        const isSel = selected===p.id
+    <div className="grid grid-cols-4 gap-4">
+      {pads.map(p => {
+        const isSel = selected === p.id
         return (
-          <div key={p.id} className={'pad' + (isSel? ' active' : '')} style={{background: '#151a21', borderColor: p.color}}
-            onClick={()=> setSelected(p.id)}
-            onDoubleClick={()=> onTrigger(p.id)}
+          <Card
+            key={p.id}
+            className={`cursor-pointer bg-glass-black backdrop-blur-sm border-2 ${
+              isSel ? 'border-brand-primary shadow-neon-glow' : 'border-gray-700'
+            }`}
+            onClick={() => setSelected(p.id)}
+            onDoubleClick={() => onTrigger(p.id)}
           >
-            <div style={{textAlign:'center'}}>
-              <div>{p.name}</div>
-              <div className="small">{p.sample? (p.sample.name) : 'Drop/Load'}</div>
-              <div style={{height:6}}/>
-              <input type="file" accept="audio/*" onChange={e=>{
-                const f = e.target.files?.[0]; if (f) onLoad(p.id, f)
-              }}/>
-            </div>
-          </div>
+            <CardHeader>
+              <CardTitle className="text-center text-white">{p.name}</CardTitle>
+            </CardHeader>
+            <CardContent className="text-center">
+              <div className="text-xs text-gray-400 truncate">
+                {p.sample ? p.sample.name : 'Drop/Load'}
+              </div>
+              <div className="mt-2">
+                <label className="cursor-pointer">
+                  <UploadCloud className="mx-auto text-brand-secondary" />
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    className="hidden"
+                    onChange={e => {
+                      const f = e.target.files?.[0]
+                      if (f) onLoad(p.id, f)
+                    }}
+                  />
+                </label>
+              </div>
+            </CardContent>
+          </Card>
         )
       })}
     </div>
