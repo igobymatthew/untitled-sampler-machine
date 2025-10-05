@@ -13,7 +13,7 @@ export function Sequencer() {
           <div className="seq">
             {steps.map(i=>{
               const on = (pattern.steps[i]||[]).includes(p.id)
-              const isNow = (i % transport.stepsPerBar) === currentStep
+              const isNow = i === currentStep
               return (
                 <div key={i} className={'step' + (on? ' on':'')} style={{outline: isNow? '2px solid #7dd3fc44' : 'none'}}
                   onClick={()=> toggleStep(i, p.id)}
