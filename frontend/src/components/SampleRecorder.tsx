@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Mic, Square } from 'lucide-react'
 import { useStore } from '../store'
+import { decodeArrayBuffer, playBuffer } from '../audio/SamplePlayer'
+import { setBuffer } from '../audio/BufferStore'
+import { engine } from '../audio/Engine'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -18,18 +21,54 @@ export function SampleRecorder() {
   }, [])
 
   const startRec = async () => {
+    if (!sel) return
+    const padId = sel
+
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
     const mr = new MediaRecorder(stream)
     chunks.current = []
     mr.ondataavailable = e => {
       if (e.data.size > 0) chunks.current.push(e.data)
     }
-    mr.onstop = () => {
+    mr.onstop = async () => {
       const blob = new Blob(chunks.current, { type: 'audio/webm' })
       const url = URL.createObjectURL(blob)
       const file = new File([blob], 'recording.webm', { type: 'audio/webm' })
-      if (!sel) return
-      setPad(sel, { sample: { id: sel, name: file.name, duration: 0, sampleRate: 0, url } })
+      if (!padId) {
+        stream.getTracks().forEach(track => track.stop())
+        return
+      }
+
+      try {
+        const arrayBuffer = await blob.arrayBuffer()
+        const buffer = await decodeArrayBuffer(arrayBuffer)
+        const pad = useStore.getState().pads.find(p => p.id === padId)
+        setBuffer(padId, buffer)
+        setPad(padId, {
+          sample: {
+            id: padId,
+            name: file.name,
+            duration: buffer.duration,
+            sampleRate: buffer.sampleRate,
+            url,
+          },
+        })
+        if (pad) {
+          await engine.resume()
+          playBuffer(buffer, engine.ctx.currentTime, {
+            gain: pad.gain,
+            attack: pad.attack,
+            decay: pad.decay,
+            startOffset: pad.startOffset,
+            loop: pad.loop,
+          })
+        }
+      } catch (err) {
+        console.error('Failed to process recording', err)
+      } finally {
+        stream.getTracks().forEach(track => track.stop())
+        mediaRec.current = null
+      }
     }
     mr.start()
     mediaRec.current = mr
