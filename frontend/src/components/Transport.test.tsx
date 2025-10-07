@@ -5,24 +5,38 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../store');
 
+// Mock the slider component
+vi.mock('@/components/ui/slider', () => ({
+  Slider: ({ value, onValueChange, ...props }: { value: number[], onValueChange: (value: number[]) => void }) => {
+    return (
+      <input
+        type="range"
+        role="slider"
+        value={value[0]}
+        onChange={(e) => onValueChange([Number(e.target.value)])}
+        {...props}
+      />
+    );
+  },
+}));
+
 describe('TransportBar', () => {
   const setTransport = vi.fn();
   const setBars = vi.fn();
 
-  const mockState = {
-    transport: { playing: false, bpm: 120, bars: 4, stepsPerBar: 16, swing: 0 },
-    pattern: { steps: {} },
-    pads: [],
-    setTransport,
-    setBars,
-  };
-
+  let mockState: any;
   beforeEach(() => {
     vi.clearAllMocks();
+    mockState = {
+      transport: { playing: false, bpm: 120, bars: 4, stepsPerBar: 16, swing: 0 },
+      pattern: { steps: {} },
+      pads: [],
+      setTransport,
+      setBars,
+    };
     (useStore as any).mockImplementation((selector: (state: any) => any) => {
       return selector(mockState);
     });
-    // Mock getState as well for the scheduler
     (useStore as any).getState = () => mockState;
   });
 

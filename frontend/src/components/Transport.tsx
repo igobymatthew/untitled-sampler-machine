@@ -7,6 +7,7 @@ import { playBuffer } from '../audio/SamplePlayer'
 import { getBuffer } from '../audio/BufferStore'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 const sched = new Scheduler((when, stepInBar, absoluteStep) => {
   useStore.setState({ currentStep: stepInBar })
@@ -35,42 +36,49 @@ export function TransportBar() {
   }, [t.bpm, t.stepsPerBar, t.bars])
 
   return (
-    <div className="flex items-center gap-4 text-white">
-      <Button
-        variant="outline"
-        className="w-24 bg-glass-white hover:bg-brand-primary hover:shadow-neon-glow"
-        onClick={async () => {
-          await engine.resume()
-          if (t.playing) {
-            sched.stop()
-            setTransport({ playing: false })
-          } else {
-            sched.start()
-            setTransport({ playing: true })
-          }
-        }}
-      >
-        {t.playing ? <Stop className="mr-2" /> : <Play className="mr-2" />}
-        {t.playing ? 'Stop' : 'Play'}
-      </Button>
+    <Card className="bg-glass-black shadow-neon-glow">
+      <CardHeader>
+        <CardTitle className="text-white">Transport</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center gap-4 text-white">
+          <Button
+            variant="outline"
+            className="w-24 bg-glass-white hover:bg-brand-primary hover:shadow-neon-glow"
+            onClick={async () => {
+              await engine.resume()
+              if (t.playing) {
+                sched.stop()
+                setTransport({ playing: false })
+              } else {
+                sched.start()
+                setTransport({ playing: true })
+              }
+            }}
+          >
+            {t.playing ? <Stop className="mr-2" /> : <Play className="mr-2" />}
+            {t.playing ? 'Stop' : 'Play'}
+          </Button>
 
-      <div className="flex items-center gap-2">
-        <label className="text-sm">BPM</label>
-        <Slider
-          min={60}
-          max={200}
-          value={[t.bpm]}
-          onValueChange={([val]) => setTransport({ bpm: val })}
-          className="w-32"
-        />
-        <span className="w-8 text-center">{t.bpm}</span>
-      </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm">BPM</label>
+            <Slider
+              min={60}
+              max={200}
+              value={[t.bpm]}
+              onValueChange={([val]) => setTransport({ bpm: val })}
+              className="w-32"
+            />
+            <span className="w-8 text-center">{t.bpm}</span>
+          </div>
 
-      <div className="flex items-center gap-2">
-        <label className="text-sm">Bars</label>
-        <BarsControl />
-      </div>
-    </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm">Bars</label>
+            <BarsControl />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
