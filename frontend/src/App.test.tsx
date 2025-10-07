@@ -7,7 +7,9 @@ describe('App integration', () => {
     render(<App />)
 
     expect(screen.getByText('Acme Inc.')).toBeInTheDocument()
-    expect(screen.getByText('Documents')).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Documents' }),
+    ).toBeInTheDocument()
     expect(screen.getByText('Transport')).toBeInTheDocument()
   })
 
