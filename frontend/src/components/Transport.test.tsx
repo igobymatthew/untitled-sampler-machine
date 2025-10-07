@@ -61,3 +61,14 @@ describe('TransportBar', () => {
     expect(setTransport).toHaveBeenCalledWith({ bpm: 140 });
   });
 });
+
+describe('Slider Component', () => {
+  it('renders multiple thumbs for a range slider', async () => {
+    const { Slider: RealSlider } = await vi.importActual<
+      typeof import('@/components/ui/slider')
+    >('@/components/ui/slider');
+    render(<RealSlider defaultValue={[10, 80]} max={100} />);
+    const thumbs = screen.getAllByRole('slider');
+    expect(thumbs).toHaveLength(2);
+  });
+});
