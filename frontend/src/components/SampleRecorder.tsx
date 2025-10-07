@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 export function SampleRecorder() {
   const sel = useStore(s => s.selectedPadId)
   const setPad = useStore(s => s.setPad)
-  const [recState, setRecState] = useState<'idle' | 'recording' | 'stopped'>('idle')
+  const [recState, setRecState] = useState<'idle' | 'recording' | 'processing'>('idle')
   const mediaRec = useRef<MediaRecorder | null>(null)
   const chunks = useRef<Blob[]>([])
 
@@ -18,28 +18,44 @@ export function SampleRecorder() {
   }, [])
 
   const startRec = async () => {
+    const targetPad = sel
+    if (!targetPad || recState !== 'idle') return
+
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
     const mr = new MediaRecorder(stream)
+    mediaRec.current = mr
     chunks.current = []
     mr.ondataavailable = e => {
       if (e.data.size > 0) chunks.current.push(e.data)
     }
-    mr.onstop = () => {
+    mr.onstop = async () => {
+      setRecState('processing')
+
       const blob = new Blob(chunks.current, { type: 'audio/webm' })
       const url = URL.createObjectURL(blob)
       const file = new File([blob], 'recording.webm', { type: 'audio/webm' })
-      if (!sel) return
-      setPad(sel, { sample: { id: sel, name: file.name, duration: 0, sampleRate: 0, url } })
+
+      if (targetPad) {
+        setPad(targetPad, {
+          sample: { id: targetPad, name: file.name, duration: 0, sampleRate: 0, url },
+        })
+      }
+
+      stream.getTracks().forEach(track => track.stop())
+      if (mediaRec.current === mr) {
+        mediaRec.current = null
+      }
+
+      setRecState('idle')
     }
     mr.start()
-    mediaRec.current = mr
     setRecState('recording')
   }
 
   const stopRec = () => {
-    mediaRec.current?.stop()
-    setRecState('stopped')
-    setTimeout(() => setRecState('idle'), 500)
+    if (mediaRec.current?.state === 'recording') {
+      mediaRec.current.stop()
+    }
   }
 
   return (
@@ -51,7 +67,7 @@ export function SampleRecorder() {
         <Button
           variant="outline"
           onClick={startRec}
-          disabled={!sel || recState === 'recording'}
+          disabled={!sel || recState !== 'idle'}
           className="bg-glass-white text-white hover:bg-red-500 hover:shadow-neon-glow"
         >
           <Mic className="mr-2" />
@@ -68,7 +84,10 @@ export function SampleRecorder() {
         </Button>
         <div className="flex items-center gap-2 text-white">
           {recState === 'recording' && <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />}
-          <span className="text-sm">{sel ? `Target: ${sel}` : 'Select a pad'}</span>
+          <span className="text-sm">
+            {sel ? `Target: ${sel}` : 'Select a pad'}
+            {recState === 'processing' && ' (processing...)'}
+          </span>
         </div>
       </CardContent>
     </Card>
