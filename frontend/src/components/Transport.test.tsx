@@ -23,16 +23,18 @@ vi.mock('@/components/ui/slider', () => ({
 describe('TransportBar', () => {
   const setTransport = vi.fn();
   const setBars = vi.fn();
+  const setPattern = vi.fn();
 
   let mockState: any;
   beforeEach(() => {
     vi.clearAllMocks();
     mockState = {
       transport: { playing: false, bpm: 120, bars: 4, stepsPerBar: 16, swing: 0 },
-      pattern: { steps: {} },
+      pattern: { steps: {}, length: 64 },
       pads: [],
       setTransport,
       setBars,
+      setPattern,
     };
     (useStore as any).mockImplementation((selector: (state: any) => any) => {
       return selector(mockState);

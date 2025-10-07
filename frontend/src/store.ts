@@ -42,6 +42,7 @@ type State = {
   setBars: (bars:number)=>void
   setSelectedPad: (id?:PadId)=>void
   setPad: (id:PadId, patch: Partial<Pad>)=>void
+  setPattern: (pattern: Pattern) => void
 }
 
 export const useStore = create<State>((set,get)=>({
@@ -63,5 +64,6 @@ export const useStore = create<State>((set,get)=>({
     return { transport: {...s.transport, bars}, pattern: {...s.pattern, length} }
   }),
   setSelectedPad: (id)=> set({selectedPadId: id}),
-  setPad: (id, patch)=> set(s=>({ pads: s.pads.map(p=> p.id===id ? {...p, ...patch} : p) }))
+  setPad: (id, patch)=> set(s=>({ pads: s.pads.map(p=> p.id===id ? {...p, ...patch} : p) })),
+  setPattern: pattern => set({ pattern })
 }))
