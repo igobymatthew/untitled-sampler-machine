@@ -24,6 +24,7 @@ export function Sequencer() {
                   } ${isNow ? 'ring-2 ring-brand-secondary' : ''} ${
                     i % 4 === 0 ? 'border-l-2 border-gray-600' : ''
                   }`}
+                  style={{ height: '2rem' }}
                   onClick={() => toggleStep(i, p.id)}
                 />
               )
