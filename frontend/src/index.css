@@ -52,17 +52,19 @@
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
   body {
-    @apply bg-background text-foreground;
+    color: hsl(var(--foreground));
     background-color: #0c0a09;
     background-image: radial-gradient(circle at 1px 1px, #292524 1px, transparent 0);
     background-size: 2rem 2rem;
   }
   .panel {
-    @apply bg-glass-black backdrop-blur-sm border border-brand-primary rounded-lg p-4 shadow-neon-glow;
+    background-color: var(--glass-black, rgba(0, 0, 0, 0.2));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    padding: 1rem;
+    box-shadow: 0 0 5px #00A9FF, 0 0 20px #00A9FF, 0 0 30px #00A9FF, 0 0 40px #00A9FF;
+    backdrop-filter: blur(4px);
   }
 }
 
@@ -89,6 +91,31 @@
 }
 
 @theme inline {
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-brand-primary: var(--brand-primary, #00A9FF);
+  --color-brand-secondary: var(--brand-secondary, #A0E9FF);
+  --color-brand-accent: var(--brand-accent, #CDF5FD);
+  --color-brand-light: var(--brand-light, #E4F9FF);
+  --color-glass-white: var(--glass-white, rgba(255, 255, 255, 0.2));
+  --color-glass-black: var(--glass-black, rgba(0, 0, 0, 0.2));
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -101,9 +128,13 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    border-color: hsl(var(--border));
+    outline-color: hsl(var(--ring) / 0.5);
   }
-  body {
-    @apply bg-background text-foreground;
+}
+
+@layer utilities {
+  .backdrop-blur-sm {
+    backdrop-filter: blur(4px);
   }
 }

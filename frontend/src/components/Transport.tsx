@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react'
-import { Play, Stop, Minus, Plus } from 'lucide-react'
+import { Play, SquareStop, Minus, Plus } from 'lucide-react'
 import { useStore } from '../store'
 import { Scheduler } from '../audio/Scheduler'
 import { engine } from '../audio/Engine'
@@ -56,7 +56,7 @@ export function TransportBar() {
               }
             }}
           >
-            {t.playing ? <Stop className="mr-2" /> : <Play className="mr-2" />}
+            {t.playing ? <SquareStop className="mr-2" /> : <Play className="mr-2" />}
             {t.playing ? 'Stop' : 'Play'}
           </Button>
 
