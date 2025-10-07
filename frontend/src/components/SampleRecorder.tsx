@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Mic, Square } from 'lucide-react'
 import { useStore } from '../store'
+import { decodeArrayBuffer, playBuffer } from '../audio/SamplePlayer'
+import { setBuffer } from '../audio/BufferStore'
+import { engine } from '../audio/Engine'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -18,16 +21,18 @@ export function SampleRecorder() {
   }, [])
 
   const startRec = async () => {
-    const targetPad = sel
-    if (!targetPad || recState !== 'idle') return
+    if (!sel || recState !== 'idle') return
+    const padId = sel
 
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
     const mr = new MediaRecorder(stream)
     mediaRec.current = mr
     chunks.current = []
+
     mr.ondataavailable = e => {
       if (e.data.size > 0) chunks.current.push(e.data)
     }
+
     mr.onstop = async () => {
       setRecState('processing')
 
@@ -35,19 +40,46 @@ export function SampleRecorder() {
       const url = URL.createObjectURL(blob)
       const file = new File([blob], 'recording.webm', { type: 'audio/webm' })
 
-      if (targetPad) {
-        setPad(targetPad, {
-          sample: { id: targetPad, name: file.name, duration: 0, sampleRate: 0, url },
+      try {
+        const arrayBuffer = await blob.arrayBuffer()
+        const buffer = await decodeArrayBuffer(arrayBuffer)
+
+        // cache buffer + update store
+        setBuffer(padId, buffer)
+        setPad(padId, {
+          sample: {
+            id: padId,
+            name: file.name,
+            duration: buffer.duration,
+            sampleRate: buffer.sampleRate,
+            url,
+          },
         })
-      }
 
-      stream.getTracks().forEach(track => track.stop())
-      if (mediaRec.current === mr) {
-        mediaRec.current = null
+        // auto audition
+        const pad = useStore.getState().pads.find(p => p.id === padId)
+        if (pad) {
+          await engine.resume()
+          playBuffer(buffer, engine.ctx.currentTime, {
+            gain: pad.gain,
+            attack: pad.attack,
+            decay: pad.decay,
+            startOffset: pad.startOffset,
+            loop: pad.loop,
+          })
+        }
+      } catch (err) {
+        console.error('Failed to process recording', err)
+      } finally {
+        stream.getTracks().forEach(track => track.stop())
+        // only clear if this stop corresponds to the same recorder
+        if (mediaRec.current === mr) {
+          mediaRec.current = null
+        }
+        setRecState('idle')
       }
-
-      setRecState('idle')
     }
+
     mr.start()
     setRecState('recording')
   }
@@ -83,7 +115,9 @@ export function SampleRecorder() {
           Stop
         </Button>
         <div className="flex items-center gap-2 text-white">
-          {recState === 'recording' && <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />}
+          {recState === 'recording' && (
+            <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
+          )}
           <span className="text-sm">
             {sel ? `Target: ${sel}` : 'Select a pad'}
             {recState === 'processing' && ' (processing...)'}
