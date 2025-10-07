@@ -1,14 +1,14 @@
 import React from 'react'
-import { AppSidebar } from "./components/app-sidebar"
-import { SiteHeader } from "./components/site-header"
-import { TransportBar } from './components/Transport'
-import { PadGrid } from './components/PadGrid'
-import { Sequencer } from './components/Sequencer'
-import { SampleRecorder } from './components/SampleRecorder'
+import { AppSidebar } from "@/components/app-sidebar"
+import { SiteHeader } from "@/components/site-header"
+import { TransportBar } from "@/components/Transport"
+import { PadGrid } from "@/components/PadGrid"
+import { Sequencer } from "@/components/Sequencer"
+import { SampleRecorder } from "@/components/SampleRecorder"
 import {
   SidebarProvider,
   SidebarInset,
-} from "./components/ui/sidebar"
+} from "@/components/ui/sidebar"
 
 
 export default function App() {
