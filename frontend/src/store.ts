@@ -9,6 +9,8 @@ function cloneProject(project: Project): Project {
     pads: project.pads.map(pad => ({
       ...pad,
       sample: pad.sample ? { ...pad.sample } : undefined,
+      noiseGate: { ...pad.noiseGate },
+      eq: { ...pad.eq },
     })),
     pattern: {
       length: project.pattern.length,

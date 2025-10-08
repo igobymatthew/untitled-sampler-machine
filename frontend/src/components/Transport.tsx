@@ -17,12 +17,13 @@ const sched = new Scheduler((when, stepInBar, absoluteStep) => {
   ids.forEach(id => {
     const p = pads.find(pp => pp.id === id)
     const buffer = getBuffer(id)
-    if (!p || !buffer) return
+    if (!p || !buffer || p.muted) return
     playBuffer(buffer, when, {
       gain: p.gain,
       attack: p.attack,
       decay: p.decay,
       startOffset: p.startOffset,
+      endOffset: p.trimEnd ?? undefined,
       loop: p.loop,
     })
   })

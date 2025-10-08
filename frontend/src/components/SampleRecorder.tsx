@@ -54,6 +54,9 @@ export function SampleRecorder() {
             sampleRate: buffer.sampleRate,
             url,
           },
+          trimStart: 0,
+          trimEnd: buffer.duration,
+          startOffset: 0,
         })
 
         // auto audition
@@ -65,6 +68,7 @@ export function SampleRecorder() {
             attack: pad.attack,
             decay: pad.decay,
             startOffset: pad.startOffset,
+            endOffset: pad.trimEnd ?? undefined,
             loop: pad.loop,
           })
         }

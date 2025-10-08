@@ -4,6 +4,7 @@ import { SiteHeader } from "@/components/site-header"
 import { TransportBar } from "@/components/Transport"
 import { PadGrid } from "@/components/PadGrid"
 import { Sequencer } from "@/components/Sequencer"
+import { PadPropertiesPanel } from "@/components/PadPropertiesPanel"
 import { SampleRecorder } from "@/components/SampleRecorder"
 import { DemoProjectLoader } from "@/components/DemoProjectLoader"
 import {
@@ -27,6 +28,7 @@ export default function App() {
             <div className="panel space-y-4">
               <PadGrid />
               <Sequencer />
+              <PadPropertiesPanel />
             </div>
           </main>
           <TransportBar />

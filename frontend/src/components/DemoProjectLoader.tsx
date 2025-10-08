@@ -21,6 +21,7 @@ export function DemoProjectLoader() {
           duration: buffer.duration,
           sampleRate: buffer.sampleRate,
         },
+        trimEnd: pad.trimEnd ?? buffer.duration,
       })
     }
   }, [pads, setPad])
