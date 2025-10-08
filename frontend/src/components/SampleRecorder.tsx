@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, Info, Mic, Play, RefreshCcw, Square } from 'lucide-react'
 import { useStore } from '../store'
 import { decodeArrayBuffer, playBuffer } from '../audio/SamplePlayer'
@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
+import { Input } from '@/components/ui/input'
 import { computePeaks } from '@/lib/audioAnalysis'
 
 type PreviewSample = {
@@ -23,6 +24,8 @@ type PreviewSample = {
 }
 
 type StrictFloat32Array = Float32Array<ArrayBuffer>
+
+const MIN_TRIM_GAP = 0.01
 
 export function SampleRecorder() {
   const pads = useStore(s => s.pads)
@@ -44,6 +47,12 @@ export function SampleRecorder() {
   const [trimRange, setTrimRange] = useState<[number, number]>([0, 0])
   const [peaks, setPeaks] = useState<number[]>([])
   const [statusMessage, setStatusMessage] = useState<string>('')
+  const [trimInputs, setTrimInputs] = useState<{ start: string; end: string }>({
+    start: '0.00',
+    end: '0.00',
+  })
+
+  const previewDuration = preview?.buffer.duration ?? 0
 
   useEffect(() => {
     if (sel) {
@@ -77,6 +86,77 @@ export function SampleRecorder() {
       setPeaks([])
     }
   }, [preview?.buffer])
+
+  useEffect(() => {
+    setTrimInputs({
+      start: trimRange[0].toFixed(2),
+      end: trimRange[1].toFixed(2),
+    })
+  }, [trimRange[0], trimRange[1]])
+
+  const applyTrimRange = useCallback(
+    (start: number, end: number) => {
+      if (!preview || previewDuration <= 0) return
+
+      setTrimRange(prev => {
+        const safeStart = Math.max(0, Math.min(start, Math.max(previewDuration - MIN_TRIM_GAP, 0)))
+        const safeEnd = Math.max(
+          safeStart + MIN_TRIM_GAP,
+          Math.min(end, previewDuration)
+        )
+
+        if (safeStart === prev[0] && safeEnd === prev[1]) {
+          return prev
+        }
+
+        return [safeStart, safeEnd]
+      })
+    },
+    [preview, previewDuration]
+  )
+
+  const commitTrimInput = (position: 'start' | 'end') => {
+    if (!preview || previewDuration <= 0) {
+      setTrimInputs({
+        start: trimRange[0].toFixed(2),
+        end: trimRange[1].toFixed(2),
+      })
+      return
+    }
+
+    const rawValue = Number.parseFloat(trimInputs[position])
+    if (Number.isNaN(rawValue)) {
+      setTrimInputs(prev => ({
+        ...prev,
+        [position]: position === 'start' ? trimRange[0].toFixed(2) : trimRange[1].toFixed(2),
+      }))
+      return
+    }
+
+    if (position === 'start') {
+      applyTrimRange(rawValue, trimRange[1])
+    } else {
+      applyTrimRange(trimRange[0], rawValue)
+    }
+  }
+
+  const handleTrimInputKeyDown = (
+    position: 'start' | 'end'
+  ): React.KeyboardEventHandler<HTMLInputElement> => event => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      commitTrimInput(position)
+      event.currentTarget.blur()
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      setTrimInputs(prev => ({
+        ...prev,
+        [position]: position === 'start' ? trimRange[0].toFixed(2) : trimRange[1].toFixed(2),
+      }))
+      event.currentTarget.blur()
+    }
+  }
 
   const stopMonitoring = () => {
     if (levelFrame.current) {
@@ -245,7 +325,7 @@ export function SampleRecorder() {
   }
 
   const levelPercent = Math.min(1, inputLevel * 3)
-  const trimDisabled = !preview || preview.buffer.duration <= 0
+  const trimDisabled = !preview || previewDuration <= 0
 
   return (
     <Card className="bg-glass-black shadow-neon-glow">
@@ -382,18 +462,56 @@ export function SampleRecorder() {
               </div>
               <Slider
                 min={0}
-                max={preview.buffer.duration > 0 ? preview.buffer.duration : 1}
+                max={previewDuration > 0 ? previewDuration : 1}
                 step={0.005}
                 disabled={trimDisabled}
                 value={[trimRange[0], trimRange[1]]}
                 onValueChange={([start, end]) => {
                   if (trimDisabled) return
-                  const duration = preview.buffer.duration
-                  const safeStart = Math.max(0, Math.min(start, Math.max(duration - 0.01, 0)))
-                  const safeEnd = Math.max(safeStart + 0.01, Math.min(end, duration))
-                  setTrimRange([safeStart, safeEnd])
+                  applyTrimRange(start, end)
                 }}
               />
+            </div>
+
+            <div className="grid gap-3 text-xs uppercase tracking-[0.35em] text-brand-light/70 md:grid-cols-2">
+              <label className="flex flex-col gap-1">
+                <span>Start</span>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min={0}
+                  max={previewDuration > 0 ? previewDuration : undefined}
+                  value={trimInputs.start}
+                  disabled={trimDisabled}
+                  onChange={event =>
+                    setTrimInputs(prev => ({ ...prev, start: event.target.value }))
+                  }
+                  onBlur={() => commitTrimInput('start')}
+                  onKeyDown={handleTrimInputKeyDown('start')}
+                  className="tracking-normal text-base bg-black/40 text-white placeholder:text-white/40 focus-visible:ring-1 focus-visible:ring-brand-primary/60"
+                  aria-label="Trim start time in seconds"
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span>End</span>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min={0}
+                  max={previewDuration > 0 ? previewDuration : undefined}
+                  value={trimInputs.end}
+                  disabled={trimDisabled}
+                  onChange={event =>
+                    setTrimInputs(prev => ({ ...prev, end: event.target.value }))
+                  }
+                  onBlur={() => commitTrimInput('end')}
+                  onKeyDown={handleTrimInputKeyDown('end')}
+                  className="tracking-normal text-base bg-black/40 text-white placeholder:text-white/40 focus-visible:ring-1 focus-visible:ring-brand-primary/60"
+                  aria-label="Trim end time in seconds"
+                />
+              </label>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
