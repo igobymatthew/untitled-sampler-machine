@@ -18,18 +18,18 @@ export default function App() {
       <DemoProjectLoader />
       <AppSidebar />
       <SidebarInset>
-        <SiteHeader />
-        <div className="app p-4">
-          <div className="panel">
-            <TransportBar />
-            <hr style={{borderColor:'#1f242b', margin:'12px 0'}} />
-            <SampleRecorder />
-          </div>
-          <div className="panel">
-            <PadGrid />
-            <div style={{height:12}} />
-            <Sequencer />
-          </div>
+        <div className="flex min-h-svh flex-col">
+          <SiteHeader />
+          <main className="flex-1 space-y-4 p-4 pb-24">
+            <div className="panel space-y-6">
+              <SampleRecorder />
+            </div>
+            <div className="panel space-y-4">
+              <PadGrid />
+              <Sequencer />
+            </div>
+          </main>
+          <TransportBar />
         </div>
       </SidebarInset>
     </SidebarProvider>

@@ -7,7 +7,6 @@ import { playBuffer } from '../audio/SamplePlayer'
 import { getBuffer } from '../audio/BufferStore'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createMidiBlob, decodeMidiPattern } from '@/lib/midi'
 import type { Transport as TransportState } from '@shared/types'
 
@@ -38,44 +37,49 @@ export function TransportBar() {
   }, [t.bpm, t.stepsPerBar, t.bars])
 
   return (
-    <Card className="bg-glass-black shadow-neon-glow">
-      <CardHeader>
-        <CardTitle className="text-white">Transport</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-wrap items-center gap-4 text-white">
-          <Button
-            variant="outline"
-            className="w-24 bg-glass-white hover:bg-brand-primary hover:shadow-neon-glow"
-            onClick={async () => {
-              await engine.resume()
-              if (t.playing) {
-                sched.stop()
-                setTransport({ playing: false })
-              } else {
-                sched.start()
-                setTransport({ playing: true })
-              }
-            }}
-          >
-            {t.playing ? <SquareStop className="mr-2" /> : <Play className="mr-2" />}
-            {t.playing ? 'Stop' : 'Play'}
-          </Button>
+    <nav className="sticky bottom-4 z-50 w-full px-4">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 rounded-2xl border border-white/20 bg-gradient-to-br from-white/20 via-white/10 to-white/5 px-6 py-4 text-white shadow-neon-glow backdrop-blur-xl">
+        <div className="flex flex-wrap items-center gap-4 md:flex-1">
+          <div className="flex items-center gap-4">
+            <div className="flex flex-col leading-tight">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.5em] text-brand-light/80">Transport</span>
+              <span className="text-sm font-medium text-brand-light">Control Center</span>
+            </div>
+            <Button
+              variant="outline"
+              className="h-12 rounded-xl border-brand-primary/60 bg-brand-primary/20 px-6 font-semibold text-brand-light transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-primary/40 hover:text-white hover:shadow-neon-glow"
+              onClick={async () => {
+                await engine.resume()
+                if (t.playing) {
+                  sched.stop()
+                  setTransport({ playing: false })
+                } else {
+                  sched.start()
+                  setTransport({ playing: true })
+                }
+              }}
+            >
+              {t.playing ? <SquareStop className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+              <span>{t.playing ? 'Stop' : 'Play'}</span>
+            </Button>
+          </div>
 
-          <div className="flex items-center gap-2">
-            <label className="text-sm">BPM</label>
+          <div className="flex items-center gap-3 text-sm">
+            <label className="text-[10px] uppercase tracking-[0.4em] text-brand-light/80">BPM</label>
             <Slider
               min={60}
               max={200}
               value={[t.bpm]}
               onValueChange={([val]) => setTransport({ bpm: val })}
-              className="w-32"
+              className="w-40"
             />
-            <span className="w-8 text-center">{t.bpm}</span>
+            <span className="min-w-[3rem] rounded-lg border border-white/20 bg-white/10 px-2 py-1 text-center text-sm font-semibold text-brand-light">
+              {t.bpm}
+            </span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <label className="text-sm">Bars</label>
+          <div className="flex items-center gap-3 text-sm">
+            <label className="text-[10px] uppercase tracking-[0.4em] text-brand-light/80">Bars</label>
             <BarsControl />
           </div>
 
@@ -83,8 +87,8 @@ export function TransportBar() {
             <MidiControls />
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </nav>
   )
 }
 
@@ -93,11 +97,23 @@ function BarsControl() {
   const setBars = useStore(s => s.setBars)
   return (
     <div className="flex items-center gap-2">
-      <Button size="icon" variant="outline" onClick={() => setBars(Math.max(1, bars - 1))}>
+      <Button
+        size="icon"
+        variant="outline"
+        className="h-11 w-11 rounded-xl border-white/30 bg-white/10 text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-primary/40 hover:text-white hover:shadow-neon-glow"
+        onClick={() => setBars(Math.max(1, bars - 1))}
+      >
         <Minus />
       </Button>
-      <span className="w-6 text-center">{bars}</span>
-      <Button size="icon" variant="outline" onClick={() => setBars(Math.min(8, bars + 1))}>
+      <span className="min-w-[2.5rem] rounded-lg border border-white/20 bg-white/10 px-2 py-1 text-center text-sm font-semibold text-brand-light">
+        {bars}
+      </span>
+      <Button
+        size="icon"
+        variant="outline"
+        className="h-11 w-11 rounded-xl border-white/30 bg-white/10 text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-primary/40 hover:text-white hover:shadow-neon-glow"
+        onClick={() => setBars(Math.min(8, bars + 1))}
+      >
         <Plus />
       </Button>
     </div>
@@ -165,12 +181,19 @@ function MidiControls() {
         className="hidden"
         onChange={onFileChange}
       />
-      <Button variant="outline" size="icon" onClick={handleExport} title="Export MIDI">
+      <Button
+        variant="outline"
+        size="icon"
+        className="h-11 w-11 rounded-xl border-white/30 bg-white/10 text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-primary/40 hover:text-white hover:shadow-neon-glow"
+        onClick={handleExport}
+        title="Export MIDI"
+      >
         <Download className="h-4 w-4" />
       </Button>
       <Button
         variant="outline"
         size="icon"
+        className="h-11 w-11 rounded-xl border-white/30 bg-white/10 text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-brand-primary/40 hover:text-white hover:shadow-neon-glow"
         onClick={() => fileInputRef.current?.click()}
         title="Import MIDI"
       >
