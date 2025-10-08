@@ -8,6 +8,35 @@ export type SampleMeta = {
   url?: string; // local blob or remote
 };
 
+export type ReverbPreset =
+  | "off"
+  | "room"
+  | "hall"
+  | "plate"
+  | "spring"
+  | "shimmer";
+
+export type NoiseGateSettings = {
+  enabled: boolean;
+  threshold: number; // decibels
+  attack: number; // milliseconds
+  release: number; // milliseconds
+};
+
+export type EqualizerBand =
+  | "31"
+  | "62"
+  | "125"
+  | "250"
+  | "500"
+  | "1k"
+  | "2k"
+  | "4k"
+  | "8k"
+  | "16k";
+
+export type EqualizerSettings = Record<EqualizerBand, number>;
+
 export type Pad = {
   id: PadId;
   name: string;
@@ -17,8 +46,14 @@ export type Pad = {
   attack: number;
   decay: number;
   startOffset: number; // seconds
+  trimStart: number; // seconds
+  trimEnd: number | null; // seconds, null -> sample end
   loop: boolean;
   muted: boolean;
+  reverbPreset: ReverbPreset;
+  reverbMix: number; // 0..1
+  noiseGate: NoiseGateSettings;
+  eq: EqualizerSettings;
 };
 
 export type Transport = {

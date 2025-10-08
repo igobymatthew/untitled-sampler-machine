@@ -5,6 +5,7 @@ export type PlaybackOpts = {
   attack: number
   decay: number
   startOffset: number
+  endOffset?: number
   loop: boolean
 }
 
@@ -19,9 +20,22 @@ export function playBuffer(
 ) {
   const src = engine.ctx.createBufferSource()
   src.buffer = buffer
+  const rawStart = Math.max(opts.startOffset, 0)
+  const clampedStart = Math.min(rawStart, buffer.duration)
+  const requestedEnd = opts.endOffset ?? buffer.duration
+  const clampedEnd = Math.max(
+    Math.min(requestedEnd, buffer.duration),
+    clampedStart + 0.01
+  )
+
   src.loop = !!opts.loop
-  src.loopStart = 0
-  src.loopEnd = buffer.duration
+  if (src.loop) {
+    src.loopStart = clampedStart
+    src.loopEnd = clampedEnd
+  } else {
+    src.loopStart = 0
+    src.loopEnd = buffer.duration
+  }
 
   const amp = engine.ctx.createGain()
   amp.gain.setValueAtTime(0, when)
@@ -29,7 +43,10 @@ export function playBuffer(
   amp.gain.linearRampToValueAtTime(0.0001, when + opts.attack + opts.decay)
 
   src.connect(amp).connect(engine.master)
-  const offset = Math.min(Math.max(opts.startOffset, 0), buffer.duration - 0.001)
-  src.start(when, offset)
-  src.stop(when + opts.attack + opts.decay + 0.05)
+  src.start(when, clampedStart)
+
+  const naturalStop = when + opts.attack + opts.decay + 0.05
+  const trimmedStop = when + Math.max(clampedEnd - clampedStart, 0.01)
+  const stopAt = opts.loop ? naturalStop : Math.min(naturalStop, trimmedStop)
+  src.stop(stopAt)
 }

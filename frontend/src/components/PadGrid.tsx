@@ -22,6 +22,7 @@ export function PadGrid() {
       attack: p.attack,
       decay: p.decay,
       startOffset: p.startOffset,
+      endOffset: p.trimEnd ?? undefined,
       loop: p.loop,
     })
   }
@@ -38,6 +39,9 @@ export function PadGrid() {
         sampleRate: buffer.sampleRate,
         url: URL.createObjectURL(file),
       },
+      trimStart: 0,
+      trimEnd: buffer.duration,
+      startOffset: 0,
     })
   }
 

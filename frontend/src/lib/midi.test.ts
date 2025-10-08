@@ -2,29 +2,43 @@ import { describe, expect, it } from 'vitest'
 import { encodePatternToMidi, decodeMidiPattern } from './midi'
 import type { Pad, Pattern, Transport } from '@shared/types'
 
+const createTestPad = (id: string, name: string, color: string): Pad => ({
+  id,
+  name,
+  color,
+  gain: 1,
+  attack: 0,
+  decay: 0.2,
+  startOffset: 0,
+  trimStart: 0,
+  trimEnd: null,
+  loop: false,
+  muted: false,
+  reverbPreset: 'off',
+  reverbMix: 0,
+  noiseGate: {
+    enabled: false,
+    threshold: -60,
+    attack: 10,
+    release: 200,
+  },
+  eq: {
+    '31': 0,
+    '62': 0,
+    '125': 0,
+    '250': 0,
+    '500': 0,
+    '1k': 0,
+    '2k': 0,
+    '4k': 0,
+    '8k': 0,
+    '16k': 0,
+  },
+})
+
 const pads: Pad[] = [
-  {
-    id: 'pad-0',
-    name: 'Pad 1',
-    color: '#ffffff',
-    gain: 1,
-    attack: 0,
-    decay: 0.2,
-    startOffset: 0,
-    loop: false,
-    muted: false,
-  },
-  {
-    id: 'pad-1',
-    name: 'Pad 2',
-    color: '#000000',
-    gain: 1,
-    attack: 0,
-    decay: 0.2,
-    startOffset: 0,
-    loop: false,
-    muted: false,
-  },
+  createTestPad('pad-0', 'Pad 1', '#ffffff'),
+  createTestPad('pad-1', 'Pad 2', '#000000'),
 ]
 
 const transport: Transport = {

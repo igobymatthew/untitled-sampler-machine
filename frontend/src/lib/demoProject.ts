@@ -1,4 +1,40 @@
-import type { Project } from '@shared/types'
+import type {
+  Project,
+  EqualizerSettings,
+  NoiseGateSettings,
+  ReverbPreset,
+} from '@shared/types'
+
+const DEFAULT_REVERB: ReverbPreset = 'off'
+
+const createDefaultNoiseGate = (): NoiseGateSettings => ({
+  enabled: false,
+  threshold: -60,
+  attack: 10,
+  release: 200,
+})
+
+const createDefaultEq = (): EqualizerSettings => ({
+  '31': 0,
+  '62': 0,
+  '125': 0,
+  '250': 0,
+  '500': 0,
+  '1k': 0,
+  '2k': 0,
+  '4k': 0,
+  '8k': 0,
+  '16k': 0,
+})
+
+const basePadSettings = () => ({
+  trimStart: 0,
+  trimEnd: null,
+  reverbPreset: DEFAULT_REVERB,
+  reverbMix: 0,
+  noiseGate: createDefaultNoiseGate(),
+  eq: createDefaultEq(),
+})
 
 export const demoProject: Project = {
   id: 'demo-808',
@@ -19,6 +55,7 @@ export const demoProject: Project = {
       attack: 0.001,
       decay: 0.45,
       startOffset: 0,
+      ...basePadSettings(),
       loop: false,
       muted: false,
       sample: {
@@ -36,6 +73,7 @@ export const demoProject: Project = {
       attack: 0.001,
       decay: 0.35,
       startOffset: 0,
+      ...basePadSettings(),
       loop: false,
       muted: false,
       sample: {
@@ -53,6 +91,7 @@ export const demoProject: Project = {
       attack: 0.001,
       decay: 0.25,
       startOffset: 0,
+      ...basePadSettings(),
       loop: false,
       muted: false,
       sample: {
@@ -70,6 +109,7 @@ export const demoProject: Project = {
       attack: 0.001,
       decay: 0.15,
       startOffset: 0,
+      ...basePadSettings(),
       loop: false,
       muted: false,
       sample: {
@@ -87,6 +127,7 @@ export const demoProject: Project = {
       attack: 0.002,
       decay: 0.2,
       startOffset: 0,
+      ...basePadSettings(),
       loop: false,
       muted: false,
     },
@@ -98,6 +139,7 @@ export const demoProject: Project = {
       attack: 0.002,
       decay: 0.2,
       startOffset: 0,
+      ...basePadSettings(),
       loop: false,
       muted: false,
     },
@@ -109,6 +151,7 @@ export const demoProject: Project = {
       attack: 0.002,
       decay: 0.2,
       startOffset: 0,
+      ...basePadSettings(),
       loop: false,
       muted: false,
     },
@@ -120,6 +163,7 @@ export const demoProject: Project = {
       attack: 0.002,
       decay: 0.2,
       startOffset: 0,
+      ...basePadSettings(),
       loop: false,
       muted: false,
     },
