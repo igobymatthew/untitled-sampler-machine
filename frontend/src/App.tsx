@@ -5,6 +5,7 @@ import { TransportBar } from "@/components/Transport"
 import { PadGrid } from "@/components/PadGrid"
 import { Sequencer } from "@/components/Sequencer"
 import { SampleRecorder } from "@/components/SampleRecorder"
+import { DemoProjectLoader } from "@/components/DemoProjectLoader"
 import {
   SidebarProvider,
   SidebarInset,
@@ -14,6 +15,7 @@ import {
 export default function App() {
   return (
     <SidebarProvider>
+      <DemoProjectLoader />
       <AppSidebar />
       <SidebarInset>
         <SiteHeader />
