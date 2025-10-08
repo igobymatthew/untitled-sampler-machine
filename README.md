@@ -43,7 +43,11 @@ and hear a beat immediately.
 
 ### Recording straight into pads
 - The sample recorder component (`SampleRecorder.tsx`) captures microphone input
-  with the MediaRecorder API and assigns the result to the currently selected pad.
+  with the MediaRecorder API and now includes a real-time level meter so you can
+  gauge headroom while tracking.
+- After stopping, you can audition the captured waveform, trim start/end points
+  with a twin-handle slider and explicitly assign the clip to any pad before it
+  lands in the project state.
 - Recordings are stored client‑side by default, but the wiring is ready for you
   to post the blob to the backend for persistence or conversion.
 
@@ -121,6 +125,11 @@ The demo assets are small synthetic 808-inspired one-shots generated entirely in
 the browser on first render. They are lightweight enough for rapid prototyping,
 but feel free to replace them with your own recordings.
 
+## Progress Report
+
+- 2025-10-08T17:22:24Z — Added a live input meter and trim workflow to the
+  recorder, plus step toggles that react immediately in the sequencer grid.
+
 ## Testing
 
 Both the backend and frontend ship with focused tests that exercise their core
@@ -162,3 +171,5 @@ behaviour.
 ## Notes
 - This is scaffolding; not production hardened. Replace stubs and expand to taste.
 - Worklet processor is stubbed; you can migrate envelopes to an AudioWorklet if needed.
+- Future innovation idea: create a user database and companion document library
+  so players can organise, re-use and save personally collected sounds across sessions.
