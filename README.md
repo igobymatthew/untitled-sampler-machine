@@ -5,11 +5,19 @@ project ships with a working React client, a FastAPI backend, and a small set of
 shared types so you can focus on extending sampler behaviour instead of wiring
 up basics from scratch.
 
+The default experience now boots straight into an **808 starter groove**: four
+pads are preloaded with kick, snare, clap and closed hi-hat voices that are
+procedurally synthesized on startup, plus a 16-step pattern so you can hit play
+and hear a beat immediately.
+
 ## Core Functionality
 
 ### Pad grid and sample management
 - Eight velocity‑agnostic pads are provided out of the box (see
   `frontend/src/components/PadGrid.tsx`).
+- The first four pads are preconfigured as Kick, Snare, Clap and Hi‑Hat and are
+  populated from an in-memory 808-inspired kit rendered by the demo loader
+  (`frontend/src/components/DemoProjectLoader.tsx`).
 - Each pad exposes gain, attack, decay, start offset, looping and mute controls
   through the global Zustand store, making it easy to tweak per‑tile playback
   characteristics.
@@ -26,6 +34,9 @@ up basics from scratch.
 - A sequencer grid lets you toggle steps per pad. The highlighted step cursor
   follows the current quantized position so you always know where you are in the
   loop.
+- The demo project ships with a one-bar, 16-step pattern that outlines a classic
+  808 groove—kick on the ones and threes, snare on the twos and fours, hi-hats
+  on every step, and a clap accent on beat three.
 - Pattern length automatically expands or contracts when the number of bars
   changes, and the store exposes helpers (`setBars`, `toggleStep`) for future UI
   enhancements.
@@ -83,6 +94,10 @@ npm install
 npm run dev
 ```
 
+Once the dev server is running, visit the printed URL. You should see the pad
+grid with the four preloaded 808 sounds. Click **Play** in the transport to hear
+the starter beat, then tweak steps, swap samples or record your own material.
+
 ### Backend
 ```bash
 cd backend
@@ -90,6 +105,21 @@ uvicorn main:app --reload
 ```
 
 Static sample storage is created automatically at `backend/storage`.
+
+## Using the preloaded 808 demo
+
+1. Start the frontend as described above and open it in your browser.
+2. Hit **Play** in the transport bar to audition the 100 BPM demo loop.
+3. Toggle steps in the sequencer to rework the groove. The pattern length is set
+   to a single bar, but you can add more using the **Bars** control.
+4. Swap any pad's sample by clicking **Drop/Load** and selecting an audio file.
+   The loader will replace the synthesized sample while keeping the pattern
+   intact.
+5. Double-click a pad tile to trigger it instantly without starting playback.
+
+The demo assets are small synthetic 808-inspired one-shots generated entirely in
+the browser on first render. They are lightweight enough for rapid prototyping,
+but feel free to replace them with your own recordings.
 
 ## Testing
 

@@ -1,35 +1,35 @@
 import create from 'zustand'
 import type { Pad, Transport, Pattern, Project, PadId } from '@shared/types'
+import { demoProject } from './lib/demoProject'
 
-function makePad(i:number): Pad {
-  const colors = ['#ef4444','#f59e0b','#10b981','#3b82f6','#a855f7','#ec4899','#22d3ee','#84cc16']
+function cloneProject(project: Project): Project {
   return {
-    id: 'pad-' + i,
-    name: 'Pad ' + (i+1),
-    color: colors[i % colors.length],
-    gain: 0.85,
-    attack: 0.002,
-    decay: 0.2,
-    startOffset: 0,
-    loop: false,
-    muted: false
+    ...project,
+    transport: { ...project.transport },
+    pads: project.pads.map(pad => ({
+      ...pad,
+      sample: pad.sample ? { ...pad.sample } : undefined,
+    })),
+    pattern: {
+      length: project.pattern.length,
+      steps: Object.entries(project.pattern.steps).reduce<Record<number, PadId[]>>(
+        (acc, [step, ids]) => {
+          acc[Number(step)] = [...ids]
+          return acc
+        },
+        {}
+      ),
+    },
   }
 }
 
-const defaultPads = Array.from({length:8}, (_,i)=>makePad(i))
+const defaultProject = cloneProject(demoProject)
 
-const defaultTransport: Transport = {
-  playing: false,
-  bpm: 120,
-  stepsPerBar: 16,
-  bars: 1,
-  swing: 0
-}
+const defaultPads = defaultProject.pads
 
-const defaultPattern: Pattern = {
-  steps: {},
-  length: defaultTransport.stepsPerBar * defaultTransport.bars
-}
+const defaultTransport: Transport = defaultProject.transport
+
+const defaultPattern: Pattern = defaultProject.pattern
 
 type State = {
   pads: Pad[]
@@ -50,7 +50,7 @@ export const useStore = create<State>((set,get)=>({
   transport: defaultTransport,
   pattern: defaultPattern,
   currentStep: 0,
-  selectedPadId: undefined,
+  selectedPadId: defaultPads[0]?.id,
   setTransport: (t)=> set(s=>({ transport: {...s.transport, ...t} })),
   toggleStep: (index, padId)=> set(s=>{
     const steps = {...s.pattern.steps}
