@@ -5,7 +5,6 @@ import { TransportBar } from "@/components/Transport"
 import { PadGrid } from "@/components/PadGrid"
 import { Sequencer } from "@/components/Sequencer"
 import { PadPropertiesPanel } from "@/components/PadPropertiesPanel"
-import { SampleRecorder } from "@/components/SampleRecorder"
 import { DemoProjectLoader } from "@/components/DemoProjectLoader"
 import {
   SidebarProvider,
@@ -22,9 +21,6 @@ export default function App() {
         <div className="flex min-h-svh flex-col">
           <SiteHeader />
           <main className="flex-1 space-y-4 p-4 pb-24">
-            <div className="panel space-y-6">
-              <SampleRecorder />
-            </div>
             <div className="panel space-y-4">
               <PadGrid />
               <Sequencer />
