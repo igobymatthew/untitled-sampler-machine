@@ -55,13 +55,27 @@ type WaveformPreviewProps = {
   trimStart: number
   trimEnd: number
   duration: number
+  disabled?: boolean
+  onTrimChange?: (start: number, end: number) => void
 }
 
-function WaveformPreview({ peaks, trimStart, trimEnd, duration }: WaveformPreviewProps) {
+function WaveformPreview({
+  peaks,
+  trimStart,
+  trimEnd,
+  duration,
+  disabled,
+  onTrimChange,
+}: WaveformPreviewProps) {
   const containerRef = React.useRef<HTMLDivElement>(null)
   const canvasRef = React.useRef<HTMLCanvasElement>(null)
   const startPercent = duration > 0 ? (trimStart / duration) * 100 : 0
   const endPercent = duration > 0 ? (trimEnd / duration) * 100 : 100
+  const pointerIdRef = React.useRef<number | null>(null)
+  const [draggingHandle, setDraggingHandle] = React.useState<'start' | 'end' | null>(
+    null
+  )
+  const interactive = Boolean(onTrimChange && !disabled && duration > 0)
 
   const drawWaveform = React.useCallback(() => {
     const canvas = canvasRef.current
@@ -139,10 +153,102 @@ function WaveformPreview({ peaks, trimStart, trimEnd, duration }: WaveformPrevie
     return () => window.removeEventListener('resize', handleResize)
   }, [drawWaveform])
 
+  const updateTrimFromPointer = React.useCallback(
+    (clientX: number, handle: 'start' | 'end') => {
+      if (!onTrimChange || duration <= 0) return
+      const container = containerRef.current
+      if (!container) return
+      const rect = container.getBoundingClientRect()
+      if (rect.width <= 0) return
+
+      const ratio = (clientX - rect.left) / rect.width
+      const clamped = Math.min(1, Math.max(0, ratio))
+      const position = clamped * duration
+      if (Number.isNaN(position)) return
+
+      if (handle === 'start') {
+        onTrimChange(position, trimEnd)
+      } else {
+        onTrimChange(trimStart, position)
+      }
+    },
+    [duration, onTrimChange, trimEnd, trimStart]
+  )
+
+  const beginDrag = React.useCallback(
+    (event: React.PointerEvent<HTMLButtonElement>, handle: 'start' | 'end') => {
+      if (!interactive) return
+      event.preventDefault()
+      event.stopPropagation()
+      pointerIdRef.current = event.pointerId
+      setDraggingHandle(handle)
+      updateTrimFromPointer(event.clientX, handle)
+    },
+    [interactive, updateTrimFromPointer]
+  )
+
+  React.useEffect(() => {
+    if (!draggingHandle) return
+
+    const handlePointerMove = (event: PointerEvent) => {
+      if (pointerIdRef.current !== null && event.pointerId !== pointerIdRef.current) {
+        return
+      }
+      event.preventDefault()
+      updateTrimFromPointer(event.clientX, draggingHandle)
+    }
+
+    const handlePointerUp = (event: PointerEvent) => {
+      if (pointerIdRef.current !== null && event.pointerId !== pointerIdRef.current) {
+        return
+      }
+      pointerIdRef.current = null
+      setDraggingHandle(null)
+    }
+
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
+    window.addEventListener('pointercancel', handlePointerUp)
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
+      window.removeEventListener('pointercancel', handlePointerUp)
+    }
+  }, [draggingHandle, updateTrimFromPointer])
+
+  const handleKeyDown = React.useCallback(
+    (event: React.KeyboardEvent<HTMLButtonElement>, handle: 'start' | 'end') => {
+      if (!interactive || duration <= 0 || !onTrimChange) return
+
+      const baseStep = Math.max(duration / 200, 0.005)
+      const step = event.shiftKey ? baseStep * 10 : baseStep
+      let delta = 0
+
+      if (event.key === 'ArrowLeft') {
+        delta = -step
+      } else if (event.key === 'ArrowRight') {
+        delta = step
+      } else {
+        return
+      }
+
+      event.preventDefault()
+
+      if (handle === 'start') {
+        onTrimChange(trimStart + delta, trimEnd)
+      } else {
+        onTrimChange(trimStart, trimEnd + delta)
+      }
+    },
+    [duration, interactive, onTrimChange, trimEnd, trimStart]
+  )
+
   return (
     <div
       ref={containerRef}
-      className="relative h-32 w-full overflow-hidden rounded-2xl border border-white/10 bg-white/5"
+      className="relative w-full overflow-hidden rounded-2xl border border-white/10 bg-white/5"
+      style={{ height: '8rem', minHeight: '8rem' }}
     >
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
       {peaks.length === 0 && (
@@ -151,22 +257,72 @@ function WaveformPreview({ peaks, trimStart, trimEnd, duration }: WaveformPrevie
         </div>
       )}
 
-      <div
-        className="pointer-events-none absolute inset-y-0 left-0 bg-black/60"
-        style={{ width: `${Math.max(0, Math.min(startPercent, 100))}%` }}
-      />
-      <div
-        className="pointer-events-none absolute inset-y-0 right-0 bg-black/60"
-        style={{ width: `${Math.max(0, 100 - Math.min(endPercent, 100))}%` }}
-      />
-      <div
-        className="pointer-events-none absolute inset-y-0 w-0.5 bg-brand-primary"
-        style={{ left: `${Math.min(startPercent, 100)}%` }}
-      />
-      <div
-        className="pointer-events-none absolute inset-y-0 w-0.5 bg-brand-primary"
-        style={{ left: `${Math.min(endPercent, 100)}%` }}
-      />
+      <div className="pointer-events-none absolute inset-0">
+        <div
+          className="absolute inset-y-0 left-0 bg-black/60"
+          style={{ width: `${Math.max(0, Math.min(startPercent, 100))}%` }}
+        />
+        <div
+          className="absolute inset-y-0 right-0 bg-black/60"
+          style={{ width: `${Math.max(0, 100 - Math.min(endPercent, 100))}%` }}
+        />
+        <div
+          className="absolute inset-y-0 bg-brand-primary/20"
+          style={{
+            left: `${Math.min(startPercent, 100)}%`,
+            right: `${Math.max(0, 100 - Math.min(endPercent, 100))}%`,
+          }}
+        />
+        <div
+          className="absolute inset-y-0 w-0.5 bg-brand-primary"
+          style={{ left: `${Math.min(startPercent, 100)}%` }}
+        />
+        <div
+          className="absolute inset-y-0 w-0.5 bg-brand-primary"
+          style={{ left: `${Math.min(endPercent, 100)}%` }}
+        />
+      </div>
+
+      {interactive && (
+        <>
+          <button
+            type="button"
+            className="group absolute -top-4 flex -translate-x-1/2 flex-col items-center gap-1 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+            style={{ left: `${Math.min(startPercent, 100)}%` }}
+            aria-label="Adjust trim start"
+            role="slider"
+            aria-valuemin={0}
+            aria-valuemax={duration}
+            aria-valuenow={trimStart}
+            aria-valuetext={formatSeconds(trimStart)}
+            onPointerDown={event => beginDrag(event, 'start')}
+            onKeyDown={event => handleKeyDown(event, 'start')}
+          >
+            <span className="rounded-sm bg-brand-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-950 opacity-80 transition-opacity group-hover:opacity-100">
+              IN
+            </span>
+            <span className="h-4 w-3 rounded-sm border border-brand-primary bg-slate-950/80 shadow-[0_0_6px_rgba(0,213,255,0.6)]" />
+          </button>
+          <button
+            type="button"
+            className="group absolute -top-4 flex -translate-x-1/2 flex-col items-center gap-1 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary"
+            style={{ left: `${Math.min(endPercent, 100)}%` }}
+            aria-label="Adjust trim end"
+            role="slider"
+            aria-valuemin={0}
+            aria-valuemax={duration}
+            aria-valuenow={trimEnd}
+            aria-valuetext={formatSeconds(trimEnd)}
+            onPointerDown={event => beginDrag(event, 'end')}
+            onKeyDown={event => handleKeyDown(event, 'end')}
+          >
+            <span className="rounded-sm bg-brand-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.25em] text-slate-950 opacity-80 transition-opacity group-hover:opacity-100">
+              OUT
+            </span>
+            <span className="h-4 w-3 rounded-sm border border-brand-primary bg-slate-950/80 shadow-[0_0_6px_rgba(0,213,255,0.6)]" />
+          </button>
+        </>
+      )}
     </div>
   )
 }
@@ -225,10 +381,33 @@ export function PadPropertiesPanel() {
   const trimEnd = selectedPad.trimEnd ?? sampleDuration
   const sliderMax = Math.max(trimEnd, sampleDuration)
   const trimSliderDisabled = sliderMax <= 0
+  const minTrimGap = React.useMemo(() => {
+    if (sliderMax <= 0) return 0
+    return Math.min(sliderMax, 0.01)
+  }, [sliderMax])
 
   const updatePad = (patch: Partial<Pad>) => {
     setPad(selectedPad.id, patch)
   }
+
+  const handleTrimChange = React.useCallback(
+    (start: number, end: number) => {
+      if (sliderMax <= 0 || minTrimGap <= 0) return
+      const maxDuration = sliderMax
+      const safeStart = Math.max(0, Math.min(start, Math.max(maxDuration - minTrimGap, 0)))
+      const safeEnd = Math.max(
+        safeStart + minTrimGap,
+        Math.min(end, Math.max(maxDuration, minTrimGap))
+      )
+
+      updatePad({
+        trimStart: safeStart,
+        trimEnd: safeEnd,
+        startOffset: safeStart,
+      })
+    },
+    [minTrimGap, sliderMax, updatePad]
+  )
 
   return (
     <Card className="border-white/10 bg-gradient-to-br from-brand-primary/20 via-white/5 to-white/0 text-white shadow-neon-glow backdrop-blur-xl">
@@ -268,7 +447,9 @@ export function PadPropertiesPanel() {
               peaks={peaks}
               trimStart={selectedPad.trimStart}
               trimEnd={trimEnd}
-              duration={sampleDuration || trimEnd}
+              duration={sliderMax}
+              disabled={trimSliderDisabled}
+              onTrimChange={handleTrimChange}
             />
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs uppercase tracking-[0.3em] text-brand-light/70">
@@ -283,19 +464,12 @@ export function PadPropertiesPanel() {
                 step={0.005}
                 disabled={trimSliderDisabled}
                 value={[
-                  Math.min(selectedPad.trimStart, sliderMax > 0 ? sliderMax : 0),
-                  Math.min(trimEnd, sliderMax > 0 ? sliderMax : trimEnd || 0),
+                  sliderMax > 0 ? Math.min(selectedPad.trimStart, sliderMax) : 0,
+                  sliderMax > 0 ? Math.min(trimEnd, sliderMax) : 0,
                 ]}
                 onValueChange={([start, end]) => {
-                  if (trimSliderDisabled) return
-                  const maxDuration = sliderMax > 0 ? sliderMax : 0
-                  const safeStart = Math.max(0, Math.min(start, Math.max(maxDuration - 0.01, 0)))
-                  const safeEnd = Math.max(safeStart + 0.01, Math.min(end, Math.max(maxDuration, 0.01)))
-                  updatePad({
-                    trimStart: safeStart,
-                    trimEnd: safeEnd,
-                    startOffset: safeStart,
-                  })
+                  if (typeof start !== 'number' || typeof end !== 'number') return
+                  handleTrimChange(start, end)
                 }}
               />
             </div>
