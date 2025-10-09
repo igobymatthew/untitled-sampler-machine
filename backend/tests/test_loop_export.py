@@ -1,12 +1,17 @@
 import io
 import math
 import os
+import subprocess
+import sys
 import wave
 from array import array
 from importlib import reload
+from pathlib import Path
 
 import pytest
 from starlette.requests import Request
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _make_test_tone(duration: float = 0.1, sample_rate: int = 44100, freq: float = 220.0):
@@ -73,7 +78,7 @@ async def test_upload_loop_and_export(backend_app):
     sample_buffer, sample_frames, sample_rate = _make_test_tone()
 
     request = _make_request('test-tone.wav')
-    upload_result = await main.upload_sample(request, payload=sample_buffer.getvalue())
+    upload_result = await main.upload_sample(request, file=None, payload=sample_buffer.getvalue())
     sample_id = upload_result['id']
 
     project_payload = {
@@ -149,3 +154,96 @@ async def test_upload_loop_and_export(backend_app):
 
     exports = os.listdir(main.EXPORTS)
     assert exports, 'an exported wav file should be written to disk'
+
+
+@pytest.mark.anyio()
+async def test_export_respects_start_offset(backend_app, tmp_path):
+    main = backend_app
+
+    output_path = tmp_path / 'trim-demo.wav'
+    subprocess.run(
+        [sys.executable, str(REPO_ROOT / 'scripts' / 'generate_trim_demo.py'), str(output_path)],
+        check=True,
+    )
+
+    with wave.open(str(output_path), 'rb') as wav_file:
+        sample_rate = wav_file.getframerate()
+        source_frames = wav_file.getnframes()
+        frames = wav_file.readframes(source_frames)
+
+    source_data = array('h')
+    source_data.frombytes(frames)
+
+    request = _make_request('trim-demo.wav')
+    upload_result = await main.upload_sample(request, file=None, payload=output_path.read_bytes())
+    sample_id = upload_result['id']
+
+    start_offset = 0.75
+    offset_samples = int(round(start_offset * sample_rate))
+    assert offset_samples < len(source_data)
+
+    project_payload = {
+        'id': '',
+        'name': 'Trim Export Test',
+        'pads': [
+            {
+                'id': 'pad-0',
+                'name': 'Pad 1',
+                'color': '#ffffff',
+                'gain': 1.0,
+                'attack': 0.0,
+                'decay': 0.1,
+                'startOffset': start_offset,
+                'loop': False,
+                'muted': False,
+                'trimStart': start_offset,
+                'trimEnd': source_frames / sample_rate,
+                'sample': {
+                    'id': sample_id,
+                    'name': 'trim-demo.wav',
+                    'duration': source_frames / sample_rate,
+                    'sampleRate': sample_rate,
+                },
+            }
+        ],
+        'pattern': {
+            'steps': {0: ['pad-0']},
+            'length': 1,
+        },
+        'transport': {
+            'playing': False,
+            'bpm': 60,
+            'stepsPerBar': 1,
+            'bars': 1,
+            'swing': 0,
+        },
+    }
+
+    project_model = main.Project(**project_payload)
+    save_result = await main.save_project(project_model)
+    project_id = save_result['id']
+
+    export_response = main.export_project(project_id, cycles=1)
+    assert export_response.media_type == 'audio/wav'
+    export_path = export_response.path
+    assert os.path.exists(export_path)
+
+    with wave.open(export_path, 'rb') as wav_file:
+        assert wav_file.getframerate() == sample_rate
+        frame_count = wav_file.getnframes()
+        frames = wav_file.readframes(frame_count)
+
+    audio_data = array('h')
+    audio_data.frombytes(frames)
+
+    expected_first_sample = int(round((source_data[offset_samples] / 32768.0) * 32767))
+    assert audio_data[0] == expected_first_sample
+
+    trimmed_samples = len(source_data) - offset_samples
+    assert trimmed_samples > 0
+
+    audible_segment = audio_data[:trimmed_samples]
+    assert max(abs(sample) for sample in audible_segment) > 0
+
+    tail_segment = audio_data[trimmed_samples : trimmed_samples + sample_rate // 10]
+    assert all(sample == 0 for sample in tail_segment)
