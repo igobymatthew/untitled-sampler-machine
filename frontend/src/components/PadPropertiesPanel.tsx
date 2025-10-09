@@ -57,59 +57,113 @@ type WaveformPreviewProps = {
 }
 
 function WaveformPreview({ peaks, trimStart, trimEnd, duration }: WaveformPreviewProps) {
+  const containerRef = React.useRef<HTMLDivElement>(null)
+  const canvasRef = React.useRef<HTMLCanvasElement>(null)
   const startPercent = duration > 0 ? (trimStart / duration) * 100 : 0
   const endPercent = duration > 0 ? (trimEnd / duration) * 100 : 100
 
+  const drawWaveform = React.useCallback(() => {
+    const canvas = canvasRef.current
+    const container = containerRef.current
+    if (!canvas || !container) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const width = Math.max(1, Math.floor(container.clientWidth))
+    const height = Math.max(1, Math.floor(container.clientHeight))
+    const dpr = window.devicePixelRatio ?? 1
+
+    canvas.width = Math.floor(width * dpr)
+    canvas.height = Math.floor(height * dpr)
+    canvas.style.width = `${width}px`
+    canvas.style.height = `${height}px`
+
+    ctx.save()
+    ctx.scale(dpr, dpr)
+    ctx.clearRect(0, 0, width, height)
+
+    // draw subtle midline
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.08)'
+    ctx.fillRect(0, height / 2 - 0.5, width, 1)
+
+    if (peaks.length > 0) {
+      const gradient = ctx.createLinearGradient(0, 0, 0, height)
+      gradient.addColorStop(0, 'rgba(160, 233, 255, 0.95)')
+      gradient.addColorStop(1, 'rgba(0, 169, 255, 0.9)')
+      ctx.fillStyle = gradient
+
+      const totalBars = width
+      const center = height / 2
+      const maxHeight = height * 0.9
+
+      for (let x = 0; x < totalBars; x += 1) {
+        const peakIndex = Math.min(
+          peaks.length - 1,
+          Math.floor((x / totalBars) * peaks.length)
+        )
+        const value = peaks[peakIndex] ?? 0
+        const barHeight = Math.max(1, value * maxHeight)
+        const y = center - barHeight / 2
+        ctx.fillRect(x, y, 1, barHeight)
+      }
+    }
+
+    ctx.restore()
+  }, [peaks])
+
+  React.useEffect(() => {
+    drawWaveform()
+  }, [drawWaveform])
+
+  React.useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    const handleResize = () => {
+      drawWaveform()
+    }
+
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(() => handleResize())
+      observer.observe(container)
+      return () => observer.disconnect()
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [drawWaveform])
+
   return (
-    <div className="relative h-32 w-full overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-      <svg
-        viewBox={`0 0 ${Math.max(peaks.length, 1)} 100`}
-        preserveAspectRatio="none"
-        className="absolute inset-0 h-full w-full text-brand-secondary"
-      >
-        {peaks.length > 0 ? (
-          peaks.map((value, index) => {
-            const height = value * 50
-            const center = 50
-            return (
-              <rect
-                key={index}
-                x={index}
-                y={center - height}
-                width={1}
-                height={height * 2}
-                fill="currentColor"
-                opacity={0.7}
-              />
-            )
-          })
-        ) : (
-          <text
-            x="50%"
-            y="50%"
-            dominantBaseline="middle"
-            textAnchor="middle"
-            className="fill-white/40 text-xs"
-          >
-            Load a sample to visualize its waveform
-          </text>
-        )}
-      </svg>
+    <div
+      ref={containerRef}
+      className="relative h-32 w-full overflow-hidden rounded-2xl border border-white/10 bg-white/5"
+    >
+      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+      {peaks.length === 0 && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs text-white/40">
+          Load a sample to visualize its waveform
+        </div>
+      )}
 
       <div
-        className="absolute inset-y-0 left-0 bg-black/60"
+        className="pointer-events-none absolute inset-y-0 left-0 bg-black/60"
         style={{ width: `${Math.max(0, Math.min(startPercent, 100))}%` }}
       />
       <div
-        className="absolute inset-y-0 right-0 bg-black/60"
+        className="pointer-events-none absolute inset-y-0 right-0 bg-black/60"
         style={{ width: `${Math.max(0, 100 - Math.min(endPercent, 100))}%` }}
       />
       <div
-        className="absolute inset-y-0 w-0.5 bg-brand-primary"
+        className="pointer-events-none absolute inset-y-0 w-0.5 bg-brand-primary"
         style={{ left: `${Math.min(startPercent, 100)}%` }}
       />
       <div
-        className="absolute inset-y-0 w-0.5 bg-brand-primary"
+        className="pointer-events-none absolute inset-y-0 w-0.5 bg-brand-primary"
         style={{ left: `${Math.min(endPercent, 100)}%` }}
       />
     </div>
