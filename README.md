@@ -125,6 +125,14 @@ The demo assets are small synthetic 808-inspired one-shots generated entirely in
 the browser on first render. They are lightweight enough for rapid prototyping,
 but feel free to replace them with your own recordings.
 
+## Included sample clip
+
+Need a quick file to exercise the trimming workflow or automated UI demos?
+Run `scripts/generate_trim_demo.py` to render a short sine wave directly into
+`frontend/public/trim-demo.wav` (or pass a custom path). The generated clip is
+lightweight, predictable and perfect for showing off start/end adjustments
+without hunting for external audio.
+
 ## Progress Report
 
 - 2025-10-08T17:22:24Z — Added a live input meter and trim workflow to the
