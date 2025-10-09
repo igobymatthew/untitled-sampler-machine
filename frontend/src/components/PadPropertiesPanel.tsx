@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { SampleRecorder } from './SampleRecorder'
 
 const EQ_BANDS: { id: EqualizerBand; label: string }[] = [
   { id: '31', label: '31 Hz' },
@@ -260,6 +261,7 @@ export function PadPropertiesPanel() {
         )}
       </CardHeader>
       <CardContent className="space-y-6">
+        <SampleRecorder layout="embedded" activePadId={selectedPad.id} />
         <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
           <div className="space-y-4">
             <WaveformPreview

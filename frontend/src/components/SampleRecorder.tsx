@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Info, Mic, Play, RefreshCcw, Square } from 'lucide-react'
 import { useStore } from '../store'
 import { decodeArrayBuffer, playBuffer } from '../audio/SamplePlayer'
@@ -27,7 +27,15 @@ type StrictFloat32Array = Float32Array<ArrayBuffer>
 
 const MIN_TRIM_GAP = 0.01
 
-export function SampleRecorder() {
+type SampleRecorderProps = {
+  layout?: 'standalone' | 'embedded'
+  activePadId?: string
+}
+
+export function SampleRecorder({
+  layout = 'standalone',
+  activePadId,
+}: SampleRecorderProps = {}) {
   const pads = useStore(s => s.pads)
   const sel = useStore(s => s.selectedPadId)
   const setPad = useStore(s => s.setPad)
@@ -42,7 +50,9 @@ export function SampleRecorder() {
   const levelFrame = useRef<number>()
 
   const [inputLevel, setInputLevel] = useState(0)
-  const [targetPadId, setTargetPadId] = useState<string | undefined>(sel)
+  const [targetPadId, setTargetPadId] = useState<string | undefined>(
+    activePadId ?? sel
+  )
   const [preview, setPreview] = useState<PreviewSample | null>(null)
   const [trimRange, setTrimRange] = useState<[number, number]>([0, 0])
   const [peaks, setPeaks] = useState<number[]>([])
@@ -55,10 +65,21 @@ export function SampleRecorder() {
   const previewDuration = preview?.buffer.duration ?? 0
 
   useEffect(() => {
-    if (sel) {
+    if (layout === 'embedded') {
+      setTargetPadId(activePadId ?? sel ?? undefined)
+    }
+  }, [layout, activePadId, sel])
+
+  useEffect(() => {
+    if (layout === 'standalone' && sel) {
       setTargetPadId(sel)
     }
-  }, [sel])
+  }, [layout, sel])
+
+  const targetPad = useMemo(
+    () => pads.find(pad => pad.id === targetPadId),
+    [pads, targetPadId]
+  )
 
   useEffect(() => {
     return () => {
@@ -189,7 +210,7 @@ export function SampleRecorder() {
   const startRec = async () => {
     if (recState !== 'idle') return
     if (!targetPadId) {
-      setStatusMessage('Select a pad to assign the recording to before capturing audio.')
+      setStatusMessage('Select a pad before capturing audio.')
       return
     }
 
@@ -327,229 +348,267 @@ export function SampleRecorder() {
   const levelPercent = Math.min(1, inputLevel * 3)
   const trimDisabled = !preview || previewDuration <= 0
 
+  const assignControl =
+    layout === 'standalone' ? (
+      <Select
+        value={targetPadId}
+        onValueChange={value => {
+          setTargetPadId(value)
+          if (layout === 'standalone') {
+            setSelectedPad(value)
+          }
+        }}
+      >
+        <SelectTrigger className="w-48 bg-black/40 text-left text-white">
+          <SelectValue placeholder="Assign to pad" />
+        </SelectTrigger>
+        <SelectContent className="bg-slate-900 text-white">
+          {pads.map(pad => (
+            <SelectItem key={pad.id} value={pad.id}>
+              {pad.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    ) : (
+      <div className="flex items-center gap-2 rounded-full border border-white/15 bg-black/40 px-3 py-1 text-[11px] uppercase tracking-[0.35em] text-white">
+        <span>Pad</span>
+        <span className="truncate tracking-[0.2em]">
+          {targetPad?.name ?? 'Select'}
+        </span>
+      </div>
+    )
+
+  const body = (
+    <>
+      <div className="flex flex-wrap items-center gap-4">
+        <Button
+          variant="outline"
+          onClick={startRec}
+          disabled={recState !== 'idle'}
+          className="bg-glass-white text-white hover:bg-red-500 hover:shadow-neon-glow"
+        >
+          <Mic className="mr-2" />
+          Record
+        </Button>
+        <Button
+          variant="outline"
+          onClick={stopRec}
+          disabled={recState !== 'recording'}
+          className="bg-glass-white text-white hover:bg-brand-primary hover:shadow-neon-glow"
+        >
+          <Square className="mr-2" />
+          Stop
+        </Button>
+        {assignControl}
+        <div className="flex min-w-[180px] flex-1 flex-col gap-1 text-xs text-white/70">
+          <span className="uppercase tracking-[0.35em] text-brand-light/70">Input Level</span>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-amber-300 to-rose-500 transition-all duration-150"
+              style={{ width: `${Math.round(levelPercent * 100)}%` }}
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-white">
+          {recState === 'recording' && (
+            <div className="h-3 w-3 animate-pulse rounded-full bg-red-500" />
+          )}
+          <span className="text-sm capitalize">{recState}</span>
+        </div>
+      </div>
+
+      {preview && (
+        <div className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-white">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-xs uppercase tracking-[0.35em] text-brand-light/70">
+            <span>Trim &amp; Review</span>
+            <span className="text-[11px] normal-case tracking-normal text-white/60">
+              {preview.fileName} · {(trimRange[1] - trimRange[0]).toFixed(2)}s of {preview.buffer.duration.toFixed(2)}s
+            </span>
+          </div>
+
+          <div className="relative h-28 w-full overflow-hidden rounded-xl border border-white/10 bg-black/40">
+            <svg
+              viewBox={`0 0 ${Math.max(peaks.length, 1)} 100`}
+              preserveAspectRatio="none"
+              className="absolute inset-0 h-full w-full text-brand-secondary/80"
+            >
+              {peaks.length > 0 ? (
+                peaks.map((value, index) => {
+                  const height = value * 50
+                  const center = 50
+                  return (
+                    <rect
+                      key={index}
+                      x={index}
+                      y={center - height}
+                      width={1}
+                      height={height * 2}
+                      fill="currentColor"
+                      opacity={0.8}
+                    />
+                  )
+                })
+              ) : (
+                <text
+                  x="50%"
+                  y="50%"
+                  dominantBaseline="middle"
+                  textAnchor="middle"
+                  className="fill-white/40 text-xs"
+                >
+                  Recording ready — adjust trim below
+                </text>
+              )}
+            </svg>
+            <div
+              className="absolute inset-y-0 left-0 bg-black/70"
+              style={{ width: `${(trimRange[0] / (preview.buffer.duration || 1)) * 100}%` }}
+            />
+            <div
+              className="absolute inset-y-0 right-0 bg-black/70"
+              style={{
+                width: `${Math.max(
+                  0,
+                  100 - (trimRange[1] / (preview.buffer.duration || 1)) * 100
+                )}%`,
+              }}
+            />
+            <div
+              className="absolute inset-y-0 w-0.5 bg-brand-primary"
+              style={{ left: `${(trimRange[0] / (preview.buffer.duration || 1)) * 100}%` }}
+            />
+            <div
+              className="absolute inset-y-0 w-0.5 bg-brand-primary"
+              style={{ left: `${(trimRange[1] / (preview.buffer.duration || 1)) * 100}%` }}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs uppercase tracking-[0.35em] text-brand-light/70">
+              <span>Trim Window</span>
+              <span className="text-[11px] normal-case tracking-normal text-white/60">
+                {trimRange[0].toFixed(2)}s – {trimRange[1].toFixed(2)}s
+              </span>
+            </div>
+            <Slider
+              min={0}
+              max={previewDuration > 0 ? previewDuration : 1}
+              step={0.005}
+              disabled={trimDisabled}
+              value={[trimRange[0], trimRange[1]]}
+              onValueChange={([start, end]) => {
+                if (trimDisabled) return
+                applyTrimRange(start, end)
+              }}
+            />
+          </div>
+
+          <div className="grid gap-3 text-xs uppercase tracking-[0.35em] text-brand-light/70 md:grid-cols-2">
+            <label className="flex flex-col gap-1">
+              <span>Start</span>
+              <Input
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min={0}
+                max={previewDuration > 0 ? previewDuration : undefined}
+                value={trimInputs.start}
+                disabled={trimDisabled}
+                onChange={event =>
+                  setTrimInputs(prev => ({ ...prev, start: event.target.value }))
+                }
+                onBlur={() => commitTrimInput('start')}
+                onKeyDown={handleTrimInputKeyDown('start')}
+                className="tracking-normal text-base bg-black/40 text-white placeholder:text-white/40 focus-visible:ring-1 focus-visible:ring-brand-primary/60"
+                aria-label="Trim start time in seconds"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span>End</span>
+              <Input
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min={0}
+                max={previewDuration > 0 ? previewDuration : undefined}
+                value={trimInputs.end}
+                disabled={trimDisabled}
+                onChange={event =>
+                  setTrimInputs(prev => ({ ...prev, end: event.target.value }))
+                }
+                onBlur={() => commitTrimInput('end')}
+                onKeyDown={handleTrimInputKeyDown('end')}
+                className="tracking-normal text-base bg-black/40 text-white placeholder:text-white/40 focus-visible:ring-1 focus-visible:ring-brand-primary/60"
+                aria-label="Trim end time in seconds"
+              />
+            </label>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              variant="outline"
+              className="bg-black/60 text-white hover:bg-brand-primary hover:shadow-neon-glow"
+              onClick={auditionRecording}
+            >
+              <Play className="mr-2 h-4 w-4" />
+              Audition Trim
+            </Button>
+            <Button
+              variant="outline"
+              className="bg-black/60 text-white hover:bg-emerald-500 hover:shadow-neon-glow"
+              onClick={assignToPad}
+            >
+              <Check className="mr-2 h-4 w-4" />
+              Assign to Pad
+            </Button>
+            <Button
+              variant="outline"
+              className="bg-black/60 text-white hover:bg-red-500/80 hover:shadow-neon-glow"
+              onClick={discardPreview}
+            >
+              <RefreshCcw className="mr-2 h-4 w-4" />
+              Discard
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {statusMessage && (
+        <div className="flex items-center gap-2 text-xs text-white/70">
+          <Info className="h-3.5 w-3.5 text-brand-secondary" />
+          <span>{statusMessage}</span>
+        </div>
+      )}
+    </>
+  )
+
+  if (layout === 'embedded') {
+    return (
+      <section className="space-y-6 rounded-2xl border border-white/10 bg-white/5 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs uppercase tracking-[0.35em] text-brand-light/70">
+          <span>Sample Recorder</span>
+          {targetPad ? (
+            <span className="rounded-full border border-white/15 bg-black/40 px-3 py-1 text-[11px] uppercase tracking-[0.3em] text-white">
+              {targetPad.name}
+            </span>
+          ) : (
+            <span className="text-[11px] uppercase tracking-[0.3em] text-rose-200/80">
+              Select a pad to enable recording
+            </span>
+          )}
+        </div>
+        {body}
+      </section>
+    )
+  }
+
   return (
     <Card className="bg-glass-black shadow-neon-glow">
       <CardHeader>
         <CardTitle className="text-white">Record Sample</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="flex flex-wrap items-center gap-4">
-          <Button
-            variant="outline"
-            onClick={startRec}
-            disabled={recState !== 'idle'}
-            className="bg-glass-white text-white hover:bg-red-500 hover:shadow-neon-glow"
-          >
-            <Mic className="mr-2" />
-            Record
-          </Button>
-          <Button
-            variant="outline"
-            onClick={stopRec}
-            disabled={recState !== 'recording'}
-            className="bg-glass-white text-white hover:bg-brand-primary hover:shadow-neon-glow"
-          >
-            <Square className="mr-2" />
-            Stop
-          </Button>
-          <Select
-            value={targetPadId}
-            onValueChange={value => {
-              setTargetPadId(value)
-              setSelectedPad(value)
-            }}
-          >
-            <SelectTrigger className="w-48 bg-black/40 text-left text-white">
-              <SelectValue placeholder="Assign to pad" />
-            </SelectTrigger>
-            <SelectContent className="bg-slate-900 text-white">
-              {pads.map(pad => (
-                <SelectItem key={pad.id} value={pad.id}>
-                  {pad.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <div className="flex min-w-[180px] flex-1 flex-col gap-1 text-xs text-white/70">
-            <span className="uppercase tracking-[0.35em] text-brand-light/70">Input Level</span>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-amber-300 to-rose-500 transition-all duration-150"
-                style={{ width: `${Math.round(levelPercent * 100)}%` }}
-              />
-            </div>
-          </div>
-          <div className="flex items-center gap-2 text-white">
-            {recState === 'recording' && (
-              <div className="h-3 w-3 animate-pulse rounded-full bg-red-500" />
-            )}
-            <span className="text-sm capitalize">{recState}</span>
-          </div>
-        </div>
-
-        {preview && (
-          <div className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-white">
-            <div className="flex flex-wrap items-center justify-between gap-3 text-xs uppercase tracking-[0.35em] text-brand-light/70">
-              <span>Trim &amp; Review</span>
-              <span className="text-[11px] normal-case tracking-normal text-white/60">
-                {preview.fileName} · {(trimRange[1] - trimRange[0]).toFixed(2)}s of {preview.buffer.duration.toFixed(2)}s
-              </span>
-            </div>
-
-            <div className="relative h-28 w-full overflow-hidden rounded-xl border border-white/10 bg-black/40">
-              <svg
-                viewBox={`0 0 ${Math.max(peaks.length, 1)} 100`}
-                preserveAspectRatio="none"
-                className="absolute inset-0 h-full w-full text-brand-secondary/80"
-              >
-                {peaks.length > 0 ? (
-                  peaks.map((value, index) => {
-                    const height = value * 50
-                    const center = 50
-                    return (
-                      <rect
-                        key={index}
-                        x={index}
-                        y={center - height}
-                        width={1}
-                        height={height * 2}
-                        fill="currentColor"
-                        opacity={0.8}
-                      />
-                    )
-                  })
-                ) : (
-                  <text
-                    x="50%"
-                    y="50%"
-                    dominantBaseline="middle"
-                    textAnchor="middle"
-                    className="fill-white/40 text-xs"
-                  >
-                    Recording ready — adjust trim below
-                  </text>
-                )}
-              </svg>
-              <div
-                className="absolute inset-y-0 left-0 bg-black/70"
-                style={{ width: `${(trimRange[0] / (preview.buffer.duration || 1)) * 100}%` }}
-              />
-              <div
-                className="absolute inset-y-0 right-0 bg-black/70"
-                style={{
-                  width: `${Math.max(
-                    0,
-                    100 - (trimRange[1] / (preview.buffer.duration || 1)) * 100
-                  )}%`,
-                }}
-              />
-              <div
-                className="absolute inset-y-0 w-0.5 bg-brand-primary"
-                style={{ left: `${(trimRange[0] / (preview.buffer.duration || 1)) * 100}%` }}
-              />
-              <div
-                className="absolute inset-y-0 w-0.5 bg-brand-primary"
-                style={{ left: `${(trimRange[1] / (preview.buffer.duration || 1)) * 100}%` }}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs uppercase tracking-[0.35em] text-brand-light/70">
-                <span>Trim Window</span>
-                <span className="text-[11px] normal-case tracking-normal text-white/60">
-                  {trimRange[0].toFixed(2)}s – {trimRange[1].toFixed(2)}s
-                </span>
-              </div>
-              <Slider
-                min={0}
-                max={previewDuration > 0 ? previewDuration : 1}
-                step={0.005}
-                disabled={trimDisabled}
-                value={[trimRange[0], trimRange[1]]}
-                onValueChange={([start, end]) => {
-                  if (trimDisabled) return
-                  applyTrimRange(start, end)
-                }}
-              />
-            </div>
-
-            <div className="grid gap-3 text-xs uppercase tracking-[0.35em] text-brand-light/70 md:grid-cols-2">
-              <label className="flex flex-col gap-1">
-                <span>Start</span>
-                <Input
-                  type="number"
-                  inputMode="decimal"
-                  step="0.01"
-                  min={0}
-                  max={previewDuration > 0 ? previewDuration : undefined}
-                  value={trimInputs.start}
-                  disabled={trimDisabled}
-                  onChange={event =>
-                    setTrimInputs(prev => ({ ...prev, start: event.target.value }))
-                  }
-                  onBlur={() => commitTrimInput('start')}
-                  onKeyDown={handleTrimInputKeyDown('start')}
-                  className="tracking-normal text-base bg-black/40 text-white placeholder:text-white/40 focus-visible:ring-1 focus-visible:ring-brand-primary/60"
-                  aria-label="Trim start time in seconds"
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span>End</span>
-                <Input
-                  type="number"
-                  inputMode="decimal"
-                  step="0.01"
-                  min={0}
-                  max={previewDuration > 0 ? previewDuration : undefined}
-                  value={trimInputs.end}
-                  disabled={trimDisabled}
-                  onChange={event =>
-                    setTrimInputs(prev => ({ ...prev, end: event.target.value }))
-                  }
-                  onBlur={() => commitTrimInput('end')}
-                  onKeyDown={handleTrimInputKeyDown('end')}
-                  className="tracking-normal text-base bg-black/40 text-white placeholder:text-white/40 focus-visible:ring-1 focus-visible:ring-brand-primary/60"
-                  aria-label="Trim end time in seconds"
-                />
-              </label>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <Button
-                variant="outline"
-                className="bg-black/60 text-white hover:bg-brand-primary hover:shadow-neon-glow"
-                onClick={auditionRecording}
-              >
-                <Play className="mr-2 h-4 w-4" />
-                Audition Trim
-              </Button>
-              <Button
-                variant="outline"
-                className="bg-black/60 text-white hover:bg-emerald-500 hover:shadow-neon-glow"
-                onClick={assignToPad}
-              >
-                <Check className="mr-2 h-4 w-4" />
-                Assign to Pad
-              </Button>
-              <Button
-                variant="outline"
-                className="bg-black/60 text-white hover:bg-red-500/80 hover:shadow-neon-glow"
-                onClick={discardPreview}
-              >
-                <RefreshCcw className="mr-2 h-4 w-4" />
-                Discard
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {statusMessage && (
-          <div className="flex items-center gap-2 text-xs text-white/70">
-            <Info className="h-3.5 w-3.5 text-brand-secondary" />
-            <span>{statusMessage}</span>
-          </div>
-        )}
-      </CardContent>
+      <CardContent className="space-y-6">{body}</CardContent>
     </Card>
   )
 }
