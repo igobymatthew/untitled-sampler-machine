@@ -1,5 +1,7 @@
 # Untitled Sampler Machine (USM)
 
+> [Experimental GL/Three animation concepts](docs/fiberGel.md)
+
 A minimal, extensible scaffold for a browser‑based drum/sampler workstation. The
 project ships with a working React client, a FastAPI backend, and a small set of
 shared types so you can focus on extending sampler behaviour instead of wiring
