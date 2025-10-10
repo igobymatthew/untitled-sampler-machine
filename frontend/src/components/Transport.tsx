@@ -11,7 +11,10 @@ import { createMidiBlob, decodeMidiPattern } from '@/lib/midi'
 import type { Transport as TransportState } from '@shared/types'
 
 const sched = new Scheduler((when, stepInBar, absoluteStep) => {
-  useStore.setState({ currentStep: stepInBar })
+  useStore.setState(state => {
+    const length = state.pattern.length || state.transport.stepsPerBar * state.transport.bars
+    return { currentStep: length > 0 ? absoluteStep % length : 0 }
+  })
   const { pattern, pads } = useStore.getState()
   const ids = pattern.steps[absoluteStep] || []
   ids.forEach(id => {
