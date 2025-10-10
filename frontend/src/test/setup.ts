@@ -65,3 +65,38 @@ class MockAudioContext {
 }
 
 (window as any).AudioContext = vi.fn().mockImplementation(() => new MockAudioContext());
+
+if (!HTMLCanvasElement.prototype.getContext) {
+  HTMLCanvasElement.prototype.getContext = vi.fn();
+}
+
+HTMLCanvasElement.prototype.getContext = vi
+  .fn()
+  .mockReturnValue({
+    fillRect: vi.fn(),
+    clearRect: vi.fn(),
+    getImageData: vi.fn(() => ({ data: new Uint8ClampedArray() })),
+    putImageData: vi.fn(),
+    createImageData: vi.fn(() => ({ data: new Uint8ClampedArray() })),
+    setTransform: vi.fn(),
+    drawImage: vi.fn(),
+    save: vi.fn(),
+    restore: vi.fn(),
+    beginPath: vi.fn(),
+    closePath: vi.fn(),
+    moveTo: vi.fn(),
+    lineTo: vi.fn(),
+    stroke: vi.fn(),
+    arc: vi.fn(),
+    fill: vi.fn(),
+    measureText: vi.fn(() => ({ width: 0 })),
+    createLinearGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
+    translate: vi.fn(),
+    scale: vi.fn(),
+    rotate: vi.fn(),
+    rect: vi.fn(),
+  });
+
+HTMLCanvasElement.prototype.toDataURL = vi
+  .fn()
+  .mockReturnValue('data:image/png;base64,');

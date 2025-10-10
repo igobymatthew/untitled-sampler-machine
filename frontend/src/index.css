@@ -138,3 +138,57 @@
     backdrop-filter: blur(4px);
   }
 }
+
+.pad-visual {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: 0.9rem;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.pad-visual__background,
+.pad-visual__shimmer,
+.pad-visual__grid,
+.pad-visual__glare {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.pad-visual__background {
+  transition: transform 220ms ease, box-shadow 260ms ease, opacity 220ms ease, border-color 260ms ease;
+  will-change: transform, opacity, box-shadow;
+}
+
+.pad-visual__shimmer {
+  opacity: 0.55;
+  mix-blend-mode: screen;
+  filter: blur(40px);
+  transform: scale(1.35);
+  animation-name: pad-visual-shimmer;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.pad-visual__grid {
+  mix-blend-mode: screen;
+  opacity: 0.75;
+}
+
+.pad-visual__glare {
+  mix-blend-mode: screen;
+  background: radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.18), transparent 45%),
+    linear-gradient(120deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0) 45%);
+  opacity: 0.38;
+}
+
+@keyframes pad-visual-shimmer {
+  from {
+    transform: rotate(0deg) scale(1.35);
+  }
+  to {
+    transform: rotate(360deg) scale(1.35);
+  }
+}
