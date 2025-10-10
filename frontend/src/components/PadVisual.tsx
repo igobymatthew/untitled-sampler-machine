@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
-import { Color, ShaderMaterial } from 'three'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { Color, ShaderMaterial, Vector2 } from 'three'
 import { useWebglSupport } from '@/hooks/useWebglSupport'
 
 type PadVisualProps = {
@@ -154,6 +154,16 @@ function PadSurface({ color, isSelected, gain, triggerSignal, sampleDuration }: 
   const materialRef = useRef<ShaderMaterial | null>(null)
   const pulseRef = useRef(0)
   const baseColor = useMemo(() => toThreeColor(color), [color])
+  const { size } = useThree()
+  const [scaleX, scaleY] = useMemo(() => {
+    const width = Math.max(size.width, 1)
+    const height = Math.max(size.height, 1)
+    const aspect = width / height
+    if (aspect >= 1) {
+      return [aspect, 1]
+    }
+    return [1, 1 / Math.max(aspect, 1e-6)]
+  }, [size.height, size.width])
 
   useEffect(() => {
     pulseRef.current = 1
@@ -186,6 +196,14 @@ function PadSurface({ color, isSelected, gain, triggerSignal, sampleDuration }: 
     }
   }, [sampleDuration])
 
+  useEffect(() => {
+    if (materialRef.current) {
+      const width = Math.max(size.width, 1)
+      const height = Math.max(size.height, 1)
+      materialRef.current.uniforms.uResolution.value.set(width, height)
+    }
+  }, [size.height, size.width])
+
   useFrame((_, delta) => {
     const material = materialRef.current
     if (!material) return
@@ -195,7 +213,7 @@ function PadSurface({ color, isSelected, gain, triggerSignal, sampleDuration }: 
   })
 
   return (
-    <mesh>
+    <mesh scale={[scaleX, scaleY, 1]}>
       <planeGeometry args={[2, 2, 64, 64]} />
       <shaderMaterial
         ref={materialRef}
@@ -208,6 +226,7 @@ function PadSurface({ color, isSelected, gain, triggerSignal, sampleDuration }: 
           uSelected: { value: isSelected ? 1 : 0 },
           uGain: { value: gain },
           uLength: { value: sampleDuration ?? 0 },
+          uResolution: { value: new Vector2(1, 1) },
         }}
         vertexShader={VERTEX_SHADER}
         fragmentShader={FRAGMENT_SHADER}
@@ -237,6 +256,20 @@ const FRAGMENT_SHADER = /* glsl */ `
   uniform float uSelected;
   uniform float uGain;
   uniform float uLength;
+  uniform vec2 uResolution;
+
+  float roundedRectSdf(vec2 uv, float radius) {
+    vec2 centered = uv * 2.0 - 1.0;
+    vec2 q = abs(centered) - vec2(1.0 - radius);
+    float outsideDist = length(max(q, 0.0));
+    float insideDist = min(max(q.x, q.y), 0.0);
+    return outsideDist + insideDist - radius;
+  }
+
+  float roundedRectMask(vec2 uv, float radius) {
+    float sdf = roundedRectSdf(uv, radius);
+    return 1.0 - smoothstep(0.0, 0.045, sdf);
+  }
 
   float hash(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
@@ -255,23 +288,26 @@ const FRAGMENT_SHADER = /* glsl */ `
 
   void main() {
     vec2 uv = vUv * 2.0 - 1.0;
+    float aspect = max(uResolution.x, 1.0) / max(uResolution.y, 1.0);
+    vec2 aspectUv = vec2(uv.x * aspect, uv.y);
     float len = length(uv);
+    float mask = roundedRectMask(vUv, 0.22);
 
     float time = uTime * (0.4 + uGain * 0.35);
-    float swirl = sin((uv.x + uv.y) * 4.0 + time * 2.2);
+    float swirl = sin((aspectUv.x + aspectUv.y) * 4.0 + time * 2.2);
     float sparkle = noise(vUv * (6.0 + uLength * 1.3) + time * 0.6);
-    float ripple = sin(len * 10.0 - time * 4.5) * exp(-len * (2.4 - uGain * 0.3));
+    float ripple = sin(length(aspectUv) * 10.0 - time * 4.5) * exp(-len * (2.4 - uGain * 0.3));
     float burst = uPulse * exp(-len * (2.6 + uGain)) * (1.0 + sparkle * 0.6);
-    float glow = smoothstep(0.95, 0.18, len + swirl * 0.05);
+    float glow = smoothstep(0.95, 0.18, len + swirl * 0.05) * mask;
 
-    float energy = clamp(glow + ripple * 0.25 + sparkle * 0.28 + burst, 0.0, 1.4);
-    float selectedGlow = uSelected * 0.35;
+    float energy = clamp(glow + ripple * 0.25 + sparkle * 0.28 + burst, 0.0, 1.4) * mask;
+    float selectedGlow = uSelected * 0.35 * mask;
 
     vec3 baseColor = mix(vec3(0.05, 0.05, 0.07), uColor, 0.55 + energy * 0.32);
     vec3 highlight = uColor * (0.25 + energy * 0.5 + selectedGlow);
-    vec3 finalColor = clamp(baseColor + highlight * 0.6, 0.0, 1.0);
+    vec3 finalColor = clamp(baseColor + highlight * 0.6, 0.0, 1.0) * mask;
 
-    gl_FragColor = vec4(finalColor, 0.9);
+    gl_FragColor = vec4(finalColor, mask * 0.9);
   }
 `
 

@@ -770,7 +770,7 @@ function WaveformBackground({
 
   if (!supportsWebgl) {
     return (
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
         <div className="absolute inset-0 bg-gradient-to-br from-[#050714] via-[#0b1025] to-[#01020a]" />
         <div className="absolute inset-0 opacity-50" style={gridStyle} />
         <div className="absolute inset-0" style={highlightStyle} />
@@ -791,8 +791,9 @@ function WaveformBackground({
   }
 
   return (
-    <div className="pointer-events-none absolute inset-0">
+    <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
       <Canvas
+        className="absolute inset-0"
         gl={{ antialias: true, alpha: true }}
         camera={{ position: [0, 1.6, 3.6], fov: 42 }}
         dpr={[1, 1.5]}
