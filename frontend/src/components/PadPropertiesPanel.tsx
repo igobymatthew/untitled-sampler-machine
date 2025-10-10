@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { SampleRecorder } from './SampleRecorder'
+import { useWebglSupport } from '@/hooks/useWebglSupport'
 
 const EQ_BANDS: { id: EqualizerBand; label: string }[] = [
   { id: '31', label: '31 Hz' },
@@ -342,6 +343,7 @@ export function PadPropertiesPanel() {
   const setPad = useStore(state => state.setPad)
 
   const [peaks, setPeaks] = React.useState<number[]>([])
+  const supportsWebgl = useWebglSupport(true)
 
   const sampleDuration = React.useMemo(() => {
     if (!selectedPad) return 0
@@ -421,6 +423,7 @@ export function PadPropertiesPanel() {
         duration={sliderMax}
         attack={selectedPad.attack}
         decay={selectedPad.decay}
+        supportsWebgl={supportsWebgl}
       />
       <CardHeader className="relative z-10 flex flex-col gap-2">
         <CardTitle className="flex items-center justify-between text-lg font-semibold">
@@ -521,6 +524,7 @@ export function PadPropertiesPanel() {
                   checked={selectedPad.loop}
                   color={selectedPad.color}
                   onChange={checked => updatePad({ loop: checked })}
+                  supportsWebgl={supportsWebgl}
                 />
                 <HudToggleRow
                   id="mute-toggle"
@@ -528,6 +532,7 @@ export function PadPropertiesPanel() {
                   checked={selectedPad.muted}
                   color={selectedPad.color}
                   onChange={checked => updatePad({ muted: checked })}
+                  supportsWebgl={supportsWebgl}
                 />
               </div>
             </div>
@@ -702,6 +707,7 @@ type WaveformBackgroundProps = {
   duration: number
   attack: number
   decay: number
+  supportsWebgl: boolean
 }
 
 function WaveformBackground({
@@ -712,7 +718,78 @@ function WaveformBackground({
   duration,
   attack,
   decay,
+  supportsWebgl,
 }: WaveformBackgroundProps) {
+  const accentColor = React.useMemo(() => new THREE.Color(color || '#38bdf8'), [color])
+  const accentRgb = React.useMemo(
+    () => `${Math.round(accentColor.r * 255)}, ${Math.round(accentColor.g * 255)}, ${Math.round(accentColor.b * 255)}`,
+    [accentColor],
+  )
+  const [startPercent, endPercent] = React.useMemo(() => {
+    if (duration <= 0) {
+      return [0, 100]
+    }
+    const safeStart = THREE.MathUtils.clamp(trimStart, 0, duration)
+    const safeEnd = THREE.MathUtils.clamp(trimEnd, 0, duration)
+    return [
+      (safeStart / duration) * 100,
+      (Math.max(safeStart, safeEnd) / duration) * 100,
+    ]
+  }, [duration, trimEnd, trimStart])
+  const highlightStyle = React.useMemo((): React.CSSProperties => {
+    const start = Number.isFinite(startPercent) ? startPercent : 0
+    const end = Number.isFinite(endPercent) ? endPercent : 100
+    const paddedStart = Math.max(0, Math.min(100, start - 0.6))
+    const paddedEnd = Math.max(0, Math.min(100, end + 0.6))
+    return {
+      backgroundImage: `linear-gradient(90deg, transparent ${paddedStart.toFixed(2)}%, rgba(${accentRgb}, 0.22) ${start.toFixed(
+        2,
+      )}%, rgba(${accentRgb}, 0.4) ${end.toFixed(2)}%, transparent ${paddedEnd.toFixed(2)}%)`,
+      mixBlendMode: 'screen',
+    }
+  }, [accentRgb, endPercent, startPercent])
+  const shimmerStyle = React.useMemo((): React.CSSProperties => ({
+    backgroundImage: `linear-gradient(120deg, rgba(${accentRgb}, 0.16), transparent 65%)`,
+    opacity: 0.35,
+  }), [accentRgb])
+  const gridStyle = React.useMemo((): React.CSSProperties => ({
+    backgroundImage:
+      'repeating-linear-gradient(0deg, rgba(148, 163, 255, 0.08), rgba(148, 163, 255, 0.08) 1px, transparent 1px, transparent 4px)',
+  }), [])
+  const envelopeStyle = React.useMemo((): React.CSSProperties => {
+    const attackWidth = Math.min(35, attack * 80)
+    const decayWidth = Math.min(30, decay * 60)
+    return {
+      backgroundImage: `linear-gradient(90deg, rgba(${accentRgb}, 0.12) 0%, transparent ${Math.max(
+        6,
+        attackWidth,
+      ).toFixed(2)}%, transparent ${Math.max(0, 100 - decayWidth).toFixed(2)}%, rgba(${accentRgb}, 0.12) 100%)`,
+      opacity: 0.55,
+    }
+  }, [accentRgb, attack, decay])
+
+  if (!supportsWebgl) {
+    return (
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#050714] via-[#0b1025] to-[#01020a]" />
+        <div className="absolute inset-0 opacity-50" style={gridStyle} />
+        <div className="absolute inset-0" style={highlightStyle} />
+        <div className="absolute inset-0 animate-[waveGlow_14s_linear_infinite]" style={shimmerStyle} />
+        <div className="absolute inset-0" style={envelopeStyle} />
+        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+        <style>
+          {`
+            @keyframes waveGlow {
+              0% { transform: translateX(-20%); opacity: 0.25; }
+              45% { opacity: 0.5; }
+              100% { transform: translateX(20%); opacity: 0.25; }
+            }
+          `}
+        </style>
+      </div>
+    )
+  }
+
   return (
     <div className="pointer-events-none absolute inset-0">
       <Canvas
@@ -955,13 +1032,14 @@ type HudToggleRowProps = {
   checked: boolean
   color: string
   onChange: (checked: boolean) => void
+  supportsWebgl: boolean
 }
 
-function HudToggleRow({ id, label, checked, color, onChange }: HudToggleRowProps) {
+function HudToggleRow({ id, label, checked, color, onChange, supportsWebgl }: HudToggleRowProps) {
   return (
     <div className="relative overflow-hidden rounded-lg border border-white/10 bg-slate-950/40 px-3 py-2">
       <div className="pointer-events-none absolute inset-0">
-        <HudStateIndicator active={checked} color={color} />
+        <HudStateIndicator active={checked} color={color} supportsWebgl={supportsWebgl} />
       </div>
       <div className="relative z-10 flex items-center gap-3 text-[11px] normal-case text-white">
         <Checkbox
@@ -981,7 +1059,52 @@ function HudToggleRow({ id, label, checked, color, onChange }: HudToggleRowProps
   )
 }
 
-function HudStateIndicator({ active, color }: { active: boolean; color: string }) {
+function HudStateIndicator({
+  active,
+  color,
+  supportsWebgl,
+}: {
+  active: boolean
+  color: string
+  supportsWebgl: boolean
+}) {
+  const accent = React.useMemo(() => new THREE.Color(color || '#38bdf8'), [color])
+  const accentRgb = React.useMemo(
+    () => `${Math.round(accent.r * 255)}, ${Math.round(accent.g * 255)}, ${Math.round(accent.b * 255)}`,
+    [accent],
+  )
+
+  if (!supportsWebgl) {
+    const pulseClass = active ? 'animate-[hudPulse_2.4s_ease-in-out_infinite]' : ''
+    return (
+      <div className="absolute inset-0" aria-hidden>
+        <div
+          className={`absolute inset-0 rounded-lg bg-slate-950/60 ${pulseClass}`}
+          style={{
+            backgroundImage: `radial-gradient(circle at 20% 20%, rgba(${accentRgb}, ${active ? 0.32 : 0.18}), transparent 65%), linear-gradient(135deg, rgba(${accentRgb}, ${active ? 0.28 : 0.12}), rgba(8, 11, 24, 0.9))`,
+            boxShadow: active ? `0 0 18px rgba(${accentRgb}, 0.35)` : 'none',
+            border: `1px solid rgba(${accentRgb}, 0.28)`,
+          }}
+        />
+        <div
+          className="absolute inset-0 mix-blend-screen opacity-60"
+          style={{
+            backgroundImage:
+              'repeating-linear-gradient(0deg, rgba(148, 163, 255, 0.12), rgba(148, 163, 255, 0.12) 1px, transparent 1px, transparent 4px)',
+          }}
+        />
+        <style>
+          {`
+            @keyframes hudPulse {
+              0%, 100% { opacity: 0.45; }
+              50% { opacity: 0.85; }
+            }
+          `}
+        </style>
+      </div>
+    )
+  }
+
   return (
     <Canvas
       gl={{ antialias: true, alpha: true }}
