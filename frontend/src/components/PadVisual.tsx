@@ -1,5 +1,7 @@
-import { memo, useEffect, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
+import { Canvas, useFrame } from '@react-three/fiber'
+import { Color, ShaderMaterial } from 'three'
 
 type PadVisualProps = {
   color: string
@@ -27,6 +29,8 @@ export const PadVisual = memo(function PadVisual({
   const base = useMemo<Rgb>(() => hexToRgb(color), [color])
   const isTestEnv =
     typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test'
+  const canCheckWebgl = typeof window !== 'undefined' && !isTestEnv
+  const supportsWebgl = useWebglSupport(canCheckWebgl)
 
   useEffect(() => {
     if (isTestEnv || typeof window === 'undefined') return
@@ -35,22 +39,6 @@ export const PadVisual = memo(function PadVisual({
     const timeout = window.setTimeout(() => setPulse(0), duration)
     return () => window.clearTimeout(timeout)
   }, [triggerSignal, decay, isTestEnv])
-
-  if (isTestEnv) {
-    const fallbackStyle: CSSProperties = {
-      backgroundImage: [
-        `radial-gradient(circle at 20% 20%, ${withAlpha(mixColor(base, WHITE, 0.3), 0.5)}, transparent 60%)`,
-        `linear-gradient(135deg, rgba(${DEEP_BACKGROUND.join(',')}, 0.85), rgba(17, 24, 39, 0.4))`,
-      ].join(', '),
-      border: `1px solid ${withAlpha(mixColor(base, WHITE, 0.28), 0.35)}`,
-      opacity: isSelected ? 0.92 : 0.82,
-    }
-    return (
-      <div className="pad-visual" aria-hidden>
-        <div className="pad-visual__background" style={fallbackStyle} />
-      </div>
-    )
-  }
 
   const shimmerDuration = useMemo(() => {
     const gainFactor = clamp(gain, 0, 1.2)
@@ -85,8 +73,24 @@ export const PadVisual = memo(function PadVisual({
   const shimmerTrail = useMemo(() => withAlpha(mixColor(base, WHITE, 0.4), 0.08 + pulse * 0.05), [base, pulse])
   const gridColor = useMemo(() => withAlpha(mixColor(base, WHITE, 0.6), 0.06 + (isSelected ? 0.05 : 0)), [base, isSelected])
 
-  return (
-    <div className="pad-visual" aria-hidden>
+  if (isTestEnv) {
+    const fallbackStyle: CSSProperties = {
+      backgroundImage: [
+        `radial-gradient(circle at 20% 20%, ${withAlpha(mixColor(base, WHITE, 0.3), 0.5)}, transparent 60%)`,
+        `linear-gradient(135deg, rgba(${DEEP_BACKGROUND.join(',')}, 0.85), rgba(17, 24, 39, 0.4))`,
+      ].join(', '),
+      border: `1px solid ${withAlpha(mixColor(base, WHITE, 0.28), 0.35)}`,
+      opacity: isSelected ? 0.92 : 0.82,
+    }
+    return (
+      <div className="pad-visual" aria-hidden>
+        <div className="pad-visual__background" style={fallbackStyle} />
+      </div>
+    )
+  }
+
+  const layers = (
+    <>
       <div className="pad-visual__background" style={backgroundStyle} />
       <div
         className="pad-visual__shimmer"
@@ -98,13 +102,227 @@ export const PadVisual = memo(function PadVisual({
       <div
         className="pad-visual__grid"
         style={{
-          backgroundImage: `repeating-linear-gradient(135deg, ${gridColor}, ${gridColor} 2px, transparent 2px, transparent 12px)`
+          backgroundImage: `repeating-linear-gradient(135deg, ${gridColor}, ${gridColor} 2px, transparent 2px, transparent 12px)`,
         }}
       />
       <div className="pad-visual__glare" />
+    </>
+  )
+
+  if (!canCheckWebgl) {
+    return (
+      <div className="pad-visual" aria-hidden>
+        {layers}
+      </div>
+    )
+  }
+
+  return (
+    <div className="pad-visual" aria-hidden>
+      {layers}
+      {supportsWebgl ? (
+        <div className="pad-visual__canvas">
+          <Canvas
+            dpr={[1, 1.75]}
+            gl={{ alpha: true, antialias: true }}
+            frameloop="always"
+            camera={{ position: [0, 0, 2.8], fov: 35 }}
+          >
+            <PadSurface
+              color={color}
+              isSelected={isSelected}
+              gain={gain}
+              triggerSignal={triggerSignal}
+              sampleDuration={sampleDuration}
+            />
+          </Canvas>
+        </div>
+      ) : null}
     </div>
   )
 })
+
+function useWebglSupport(enabled: boolean) {
+  const [supported, setSupported] = useState(false)
+
+  useEffect(() => {
+    if (!enabled) return
+    let cancelled = false
+    let detected = false
+    try {
+      const canvas = document.createElement('canvas')
+      const context =
+        typeof canvas.getContext === 'function'
+          ? canvas.getContext('webgl') ?? canvas.getContext('experimental-webgl')
+          : null
+      const webglContext = isWebglContext(context) ? context : null
+      detected = Boolean(webglContext)
+      webglContext?.getExtension('WEBGL_lose_context')?.loseContext()
+    } catch {
+      detected = false
+    }
+    if (!cancelled) {
+      setSupported(detected)
+    }
+    return () => {
+      cancelled = true
+    }
+  }, [enabled])
+
+  return enabled ? supported : false
+}
+
+function isWebglContext(value: unknown): value is WebGLRenderingContext | WebGL2RenderingContext {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'getExtension' in value &&
+    typeof (value as WebGLRenderingContext).getExtension === 'function'
+  )
+}
+
+type PadSurfaceProps = {
+  color: string
+  isSelected: boolean
+  gain: number
+  triggerSignal: number
+  sampleDuration?: number
+}
+
+function PadSurface({ color, isSelected, gain, triggerSignal, sampleDuration }: PadSurfaceProps) {
+  const materialRef = useRef<ShaderMaterial | null>(null)
+  const pulseRef = useRef(0)
+  const baseColor = useMemo(() => toThreeColor(color), [color])
+
+  useEffect(() => {
+    pulseRef.current = 1
+    if (materialRef.current) {
+      materialRef.current.uniforms.uPulse.value = 1
+    }
+  }, [triggerSignal])
+
+  useEffect(() => {
+    if (materialRef.current) {
+      materialRef.current.uniforms.uColor.value.copy(baseColor)
+    }
+  }, [baseColor])
+
+  useEffect(() => {
+    if (materialRef.current) {
+      materialRef.current.uniforms.uSelected.value = isSelected ? 1 : 0
+    }
+  }, [isSelected])
+
+  useEffect(() => {
+    if (materialRef.current) {
+      materialRef.current.uniforms.uGain.value = gain
+    }
+  }, [gain])
+
+  useEffect(() => {
+    if (materialRef.current) {
+      materialRef.current.uniforms.uLength.value = sampleDuration ?? 0
+    }
+  }, [sampleDuration])
+
+  useFrame((_, delta) => {
+    const material = materialRef.current
+    if (!material) return
+    material.uniforms.uTime.value += delta
+    pulseRef.current = Math.max(pulseRef.current - delta * (1.2 + gain * 0.55), 0)
+    material.uniforms.uPulse.value = pulseRef.current
+  })
+
+  return (
+    <mesh>
+      <planeGeometry args={[2, 2, 64, 64]} />
+      <shaderMaterial
+        ref={materialRef}
+        transparent
+        depthWrite={false}
+        uniforms={{
+          uColor: { value: baseColor.clone() },
+          uTime: { value: 0 },
+          uPulse: { value: 0 },
+          uSelected: { value: isSelected ? 1 : 0 },
+          uGain: { value: gain },
+          uLength: { value: sampleDuration ?? 0 },
+        }}
+        vertexShader={VERTEX_SHADER}
+        fragmentShader={FRAGMENT_SHADER}
+        toneMapped={false}
+      />
+    </mesh>
+  )
+}
+
+const VERTEX_SHADER = /* glsl */ `
+  varying vec2 vUv;
+
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`
+
+const FRAGMENT_SHADER = /* glsl */ `
+  precision mediump float;
+
+  varying vec2 vUv;
+
+  uniform vec3 uColor;
+  uniform float uTime;
+  uniform float uPulse;
+  uniform float uSelected;
+  uniform float uGain;
+  uniform float uLength;
+
+  float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+  }
+
+  float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    float a = hash(i);
+    float b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0));
+    float d = hash(i + vec2(1.0, 1.0));
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+  }
+
+  void main() {
+    vec2 uv = vUv * 2.0 - 1.0;
+    float len = length(uv);
+
+    float time = uTime * (0.4 + uGain * 0.35);
+    float swirl = sin((uv.x + uv.y) * 4.0 + time * 2.2);
+    float sparkle = noise(vUv * (6.0 + uLength * 1.3) + time * 0.6);
+    float ripple = sin(len * 10.0 - time * 4.5) * exp(-len * (2.4 - uGain * 0.3));
+    float burst = uPulse * exp(-len * (2.6 + uGain)) * (1.0 + sparkle * 0.6);
+    float glow = smoothstep(0.95, 0.18, len + swirl * 0.05);
+
+    float energy = clamp(glow + ripple * 0.25 + sparkle * 0.28 + burst, 0.0, 1.4);
+    float selectedGlow = uSelected * 0.35;
+
+    vec3 baseColor = mix(vec3(0.05, 0.05, 0.07), uColor, 0.55 + energy * 0.32);
+    vec3 highlight = uColor * (0.25 + energy * 0.5 + selectedGlow);
+    vec3 finalColor = clamp(baseColor + highlight * 0.6, 0.0, 1.0);
+
+    gl_FragColor = vec4(finalColor, 0.9);
+  }
+`
+
+function toThreeColor(input: string) {
+  const color = new Color()
+  try {
+    color.set(input)
+  } catch {
+    color.set('#ffffff')
+  }
+  return color
+}
 
 function hexToRgb(hex: string): Rgb {
   let normalized = hex.trim()

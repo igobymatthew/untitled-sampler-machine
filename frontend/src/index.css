@@ -157,6 +157,20 @@
   border-radius: inherit;
 }
 
+.pad-visual__canvas {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  filter: saturate(1.08);
+}
+
+.pad-visual__canvas canvas {
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: inherit;
+}
+
 .pad-visual__background {
   transition: transform 220ms ease, box-shadow 260ms ease, opacity 220ms ease, border-color 260ms ease;
   will-change: transform, opacity, box-shadow;
