@@ -1,5 +1,6 @@
 import React from 'react'
 import { useStore } from '../store'
+import { useWebglSupport } from '@/hooks/useWebglSupport'
 
 type SequencerStepButtonProps = {
   on: boolean
@@ -157,6 +158,8 @@ function SequencerStepButton({ on, isNow, padColor, showBarDivider, onClick }: S
     if (typeof window === 'undefined') return false
     return window.matchMedia('(prefers-reduced-motion: reduce)').matches
   })
+  const supportsWebgl = useWebglSupport(!prefersReducedMotion)
+  const [glReady, setGlReady] = React.useState(false)
 
   React.useEffect(() => {
     if (typeof window === 'undefined') {
@@ -173,7 +176,7 @@ function SequencerStepButton({ on, isNow, padColor, showBarDivider, onClick }: S
   }, [])
 
   const startAnimation = React.useCallback(() => {
-    if (prefersReducedMotion) {
+    if (prefersReducedMotion || !glStateRef.current) {
       return
     }
 
@@ -263,30 +266,43 @@ function SequencerStepButton({ on, isNow, padColor, showBarDivider, onClick }: S
 
   React.useEffect(() => {
     targetProgressRef.current = on ? 1 : 0
-    if (!prefersReducedMotion) {
+    if (!prefersReducedMotion && glStateRef.current) {
       startAnimation()
     }
   }, [on, prefersReducedMotion, startAnimation])
 
   React.useEffect(() => {
-    if (!prefersReducedMotion && isNow) {
+    if (!prefersReducedMotion && glStateRef.current && isNow) {
       cursorStateRef.current = { active: true, value: 0 }
       startAnimation()
     }
   }, [isNow, prefersReducedMotion, startAnimation])
 
   React.useEffect(() => {
-    if (prefersReducedMotion) {
+    if (prefersReducedMotion || !supportsWebgl) {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current)
+        animationRef.current = undefined
+      }
+      if (glStateRef.current) {
+        const { gl: currentGl, program: currentProgram, buffers } = glStateRef.current
+        currentGl.deleteProgram(currentProgram)
+        currentGl.deleteBuffer(buffers.position)
+        glStateRef.current = null
+      }
+      setGlReady(false)
       return
     }
 
     if (typeof window === 'undefined') {
+      setGlReady(false)
       return
     }
 
     const canvas = canvasRef.current
     const button = buttonRef.current
     if (!canvas || !button) {
+      setGlReady(false)
       return
     }
 
@@ -298,6 +314,7 @@ function SequencerStepButton({ on, isNow, padColor, showBarDivider, onClick }: S
     })
 
     if (!gl || typeof (gl as WebGLRenderingContext).createShader !== 'function') {
+      setGlReady(false)
       return
     }
 
@@ -311,6 +328,7 @@ function SequencerStepButton({ on, isNow, padColor, showBarDivider, onClick }: S
 
     if (!positionBuffer) {
       typedGl.deleteProgram(program)
+      setGlReady(false)
       return
     }
 
@@ -379,6 +397,7 @@ function SequencerStepButton({ on, isNow, padColor, showBarDivider, onClick }: S
       window.addEventListener('resize', handleWindowResize)
     }
 
+    setGlReady(true)
     startAnimation()
 
     return () => {
@@ -389,6 +408,7 @@ function SequencerStepButton({ on, isNow, padColor, showBarDivider, onClick }: S
       }
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current)
+        animationRef.current = undefined
       }
       if (glStateRef.current) {
         const { gl: currentGl, program: currentProgram, buffers } = glStateRef.current
@@ -396,8 +416,9 @@ function SequencerStepButton({ on, isNow, padColor, showBarDivider, onClick }: S
         currentGl.deleteBuffer(buffers.position)
       }
       glStateRef.current = null
+      setGlReady(false)
     }
-  }, [prefersReducedMotion, startAnimation])
+  }, [prefersReducedMotion, supportsWebgl, startAnimation])
 
   React.useEffect(() => {
     if (prefersReducedMotion) {
@@ -407,11 +428,18 @@ function SequencerStepButton({ on, isNow, padColor, showBarDivider, onClick }: S
 
   const fallbackStyles = React.useMemo(() => {
     const [r, g, b] = activeColor
-    const baseColor = `rgba(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)}, ${on ? 0.85 : 0.2})`
+    const rgb = `${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)}`
+    const baseColor = `rgba(${rgb}, ${on ? 0.82 : 0.18})`
+    const nowGlow = isNow ? `0 0 18px rgba(${rgb}, 0.55)` : 'none'
     return {
-      background: `radial-gradient(circle at 30% 30%, ${baseColor}, rgba(22, 24, 33, 0.95))`,
+      background: `radial-gradient(circle at 30% 30%, ${baseColor}, rgba(15, 18, 30, 0.95))`,
+      boxShadow: nowGlow,
+      position: 'relative' as const,
+      overflow: 'hidden' as const,
     }
-  }, [activeColor, on])
+  }, [activeColor, isNow, on])
+
+  const showCanvas = !prefersReducedMotion && glReady
 
   return (
     <button
@@ -420,18 +448,50 @@ function SequencerStepButton({ on, isNow, padColor, showBarDivider, onClick }: S
       aria-pressed={on}
       onClick={onClick}
       className={`relative h-8 overflow-hidden rounded-md border border-white/10 bg-gray-900/70 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-secondary ${
-        on ? 'shadow-[0_0_12px_rgba(77,116,255,0.45)]' : ''
+        on ? 'shadow-[0_0_12px_rgba(77,116,255,0.35)]' : ''
       }`}
-      style={prefersReducedMotion ? fallbackStyles : undefined}
+      style={showCanvas ? undefined : fallbackStyles}
     >
-      {!prefersReducedMotion && (
+      {showCanvas ? (
         <canvas ref={canvasRef} className="pointer-events-none absolute inset-0" />
+      ) : (
+        <FallbackSweep isNow={isNow} color={activeColor} />
       )}
       {showBarDivider ? (
         <span className="pointer-events-none absolute inset-y-0 left-0 w-px bg-white/10" aria-hidden="true" />
       ) : null}
       <span className="sr-only">{on ? 'Active step' : 'Inactive step'}</span>
     </button>
+  )
+}
+
+function FallbackSweep({ isNow, color }: { isNow: boolean; color: [number, number, number] }) {
+  const sweepStyle = React.useMemo(() => {
+    const rgb = `${Math.round(color[0] * 255)}, ${Math.round(color[1] * 255)}, ${Math.round(color[2] * 255)}`
+    return {
+      backgroundImage: `linear-gradient(120deg, rgba(${rgb}, 0.05) 0%, rgba(${rgb}, 0.35) 40%, rgba(${rgb}, 0.6) 50%, rgba(${rgb}, 0.2) 70%, transparent 100%)`,
+    }
+  }, [color])
+
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(59,130,246,0.12),transparent_60%),linear-gradient(135deg,rgba(11,16,35,0.8),rgba(6,9,20,0.95))]" />
+      <div
+        className={`absolute inset-0 ${isNow ? 'animate-[sweep_900ms_ease-out]' : ''}`}
+        style={sweepStyle}
+      />
+      <div className="absolute inset-x-0 top-full h-full -translate-y-1/2 bg-[radial-gradient(circle,rgba(148,163,255,0.22),transparent_70%)] blur-xl" />
+      <style>
+        {`
+          @keyframes sweep {
+            0% { transform: translateX(-110%); opacity: 0; }
+            15% { opacity: 0.35; }
+            60% { opacity: 0.4; }
+            100% { transform: translateX(120%); opacity: 0; }
+          }
+        `}
+      </style>
+    </div>
   )
 }
 

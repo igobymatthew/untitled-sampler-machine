@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Color, ShaderMaterial } from 'three'
+import { useWebglSupport } from '@/hooks/useWebglSupport'
 
 type PadVisualProps = {
   color: string
@@ -29,8 +30,7 @@ export const PadVisual = memo(function PadVisual({
   const base = useMemo<Rgb>(() => hexToRgb(color), [color])
   const isTestEnv =
     typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test'
-  const canCheckWebgl = typeof window !== 'undefined' && !isTestEnv
-  const supportsWebgl = useWebglSupport(canCheckWebgl)
+  const supportsWebgl = useWebglSupport(!isTestEnv)
 
   useEffect(() => {
     if (isTestEnv || typeof window === 'undefined') return
@@ -109,7 +109,7 @@ export const PadVisual = memo(function PadVisual({
     </>
   )
 
-  if (!canCheckWebgl) {
+  if (typeof window === 'undefined') {
     return (
       <div className="pad-visual" aria-hidden>
         {layers}
@@ -141,45 +141,6 @@ export const PadVisual = memo(function PadVisual({
     </div>
   )
 })
-
-function useWebglSupport(enabled: boolean) {
-  const [supported, setSupported] = useState(false)
-
-  useEffect(() => {
-    if (!enabled) return
-    let cancelled = false
-    let detected = false
-    try {
-      const canvas = document.createElement('canvas')
-      const context =
-        typeof canvas.getContext === 'function'
-          ? canvas.getContext('webgl') ?? canvas.getContext('experimental-webgl')
-          : null
-      const webglContext = isWebglContext(context) ? context : null
-      detected = Boolean(webglContext)
-      webglContext?.getExtension('WEBGL_lose_context')?.loseContext()
-    } catch {
-      detected = false
-    }
-    if (!cancelled) {
-      setSupported(detected)
-    }
-    return () => {
-      cancelled = true
-    }
-  }, [enabled])
-
-  return enabled ? supported : false
-}
-
-function isWebglContext(value: unknown): value is WebGLRenderingContext | WebGL2RenderingContext {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'getExtension' in value &&
-    typeof (value as WebGLRenderingContext).getExtension === 'function'
-  )
-}
 
 type PadSurfaceProps = {
   color: string
