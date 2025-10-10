@@ -72,9 +72,13 @@ export function PadGrid() {
                     type="file"
                     accept="audio/*"
                     className="hidden"
-                    onChange={e => {
-                      const f = e.target.files?.[0]
-                      if (f) onLoad(p.id, f)
+                    onChange={async e => {
+                      const input = e.target as HTMLInputElement
+                      const f = input.files?.[0]
+                      if (f) {
+                        await onLoad(p.id, f)
+                        input.value = ''
+                      }
                     }}
                   />
                 </label>
