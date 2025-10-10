@@ -11,6 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Slider } from '@/components/ui/slider'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Canvas, useFrame } from '@react-three/fiber'
+import * as THREE from 'three'
 import {
   Select,
   SelectContent,
@@ -410,8 +412,17 @@ export function PadPropertiesPanel() {
   )
 
   return (
-    <Card className="border-white/10 bg-gradient-to-br from-brand-primary/20 via-white/5 to-white/0 text-white shadow-neon-glow backdrop-blur-xl">
-      <CardHeader className="flex flex-col gap-2">
+    <Card className="relative overflow-hidden border-white/10 bg-slate-950/60 text-white shadow-neon-glow backdrop-blur-2xl">
+      <WaveformBackground
+        peaks={peaks}
+        color={selectedPad.color}
+        trimStart={selectedPad.trimStart}
+        trimEnd={trimEnd}
+        duration={sliderMax}
+        attack={selectedPad.attack}
+        decay={selectedPad.decay}
+      />
+      <CardHeader className="relative z-10 flex flex-col gap-2">
         <CardTitle className="flex items-center justify-between text-lg font-semibold">
           <span className="flex items-center gap-3">
             <span
@@ -439,7 +450,7 @@ export function PadPropertiesPanel() {
           </div>
         )}
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="relative z-10 space-y-6">
         <SampleRecorder layout="embedded" activePadId={selectedPad.id} />
         <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
           <div className="space-y-4">
@@ -504,30 +515,20 @@ export function PadPropertiesPanel() {
               />
               <div className="flex flex-col gap-3 rounded-xl border border-white/10 bg-white/5 p-4 text-xs uppercase tracking-[0.3em] text-brand-light/70">
                 <span>Playback</span>
-                <div className="flex items-center gap-3 text-[11px] normal-case">
-                  <Checkbox
-                    id="loop-toggle"
-                    checked={selectedPad.loop}
-                    onCheckedChange={checked =>
-                      updatePad({ loop: checked === true })
-                    }
-                  />
-                  <Label htmlFor="loop-toggle" className="cursor-pointer text-white">
-                    Loop Sample
-                  </Label>
-                </div>
-                <div className="flex items-center gap-3 text-[11px] normal-case">
-                  <Checkbox
-                    id="mute-toggle"
-                    checked={selectedPad.muted}
-                    onCheckedChange={checked =>
-                      updatePad({ muted: checked === true })
-                    }
-                  />
-                  <Label htmlFor="mute-toggle" className="cursor-pointer text-white">
-                    Mute Pad
-                  </Label>
-                </div>
+                <HudToggleRow
+                  id="loop-toggle"
+                  label="Loop Sample"
+                  checked={selectedPad.loop}
+                  color={selectedPad.color}
+                  onChange={checked => updatePad({ loop: checked })}
+                />
+                <HudToggleRow
+                  id="mute-toggle"
+                  label="Mute Pad"
+                  checked={selectedPad.muted}
+                  color={selectedPad.color}
+                  onChange={checked => updatePad({ muted: checked })}
+                />
               </div>
             </div>
           </div>
@@ -691,4 +692,446 @@ function PadSlider({ label, value, min, max, step, format, onChange }: PadSlider
       />
     </div>
   )
+}
+
+type WaveformBackgroundProps = {
+  peaks: number[]
+  color: string
+  trimStart: number
+  trimEnd: number
+  duration: number
+  attack: number
+  decay: number
+}
+
+function WaveformBackground({
+  peaks,
+  color,
+  trimStart,
+  trimEnd,
+  duration,
+  attack,
+  decay,
+}: WaveformBackgroundProps) {
+  return (
+    <div className="pointer-events-none absolute inset-0">
+      <Canvas
+        gl={{ antialias: true, alpha: true }}
+        camera={{ position: [0, 1.6, 3.6], fov: 42 }}
+        dpr={[1, 1.5]}
+        frameloop="always"
+      >
+        <React.Suspense fallback={null}>
+          <color attach="background" args={["#050714"]} />
+          <fog attach="fog" args={["#050714", 6, 14]} />
+          <WaveformScene
+            peaks={peaks}
+            color={color}
+            trimStart={trimStart}
+            trimEnd={trimEnd}
+            duration={duration}
+            attack={attack}
+            decay={decay}
+          />
+        </React.Suspense>
+      </Canvas>
+    </div>
+  )
+}
+
+type WaveformSceneProps = {
+  peaks: number[]
+  color: string
+  trimStart: number
+  trimEnd: number
+  duration: number
+  attack: number
+  decay: number
+}
+
+function WaveformScene({ peaks, color, trimStart, trimEnd, duration, attack, decay }: WaveformSceneProps) {
+  return (
+    <>
+      <WaveformLights color={color} />
+      <WaveformMesh
+        peaks={peaks}
+        color={color}
+        trimStart={trimStart}
+        trimEnd={trimEnd}
+        duration={duration}
+        attack={attack}
+        decay={decay}
+      />
+      <WaveformAura color={color} />
+    </>
+  )
+}
+
+function WaveformLights({ color }: { color: string }) {
+  const lightColor = React.useMemo(() => new THREE.Color(color || "#38bdf8"), [color])
+  const rimColor = React.useMemo(() => lightColor.clone().multiplyScalar(1.35), [lightColor])
+
+  return (
+    <>
+      <ambientLight intensity={0.3} />
+      <directionalLight position={[2.5, 3.8, 4.6]} intensity={0.8} color={lightColor} />
+      <pointLight position={[-3.2, -1.5, 2]} intensity={0.65} color={lightColor.clone().multiplyScalar(0.7)} />
+      <spotLight
+        position={[0, 5.5, 5.5]}
+        angle={0.7}
+        penumbra={0.5}
+        intensity={0.95}
+        color={rimColor}
+      />
+    </>
+  )
+}
+
+type WaveformMeshProps = {
+  peaks: number[]
+  color: string
+  trimStart: number
+  trimEnd: number
+  duration: number
+  attack: number
+  decay: number
+}
+
+function WaveformMesh({ peaks, color, trimStart, trimEnd, duration, attack, decay }: WaveformMeshProps) {
+  const meshRef = React.useRef<THREE.Mesh>(null)
+  const materialRef = React.useRef<THREE.MeshStandardMaterial>(null)
+
+  const geometry = React.useMemo(() => generateWaveformGeometry(peaks), [peaks])
+
+  React.useEffect(() => () => geometry.dispose(), [geometry])
+
+  const targetRange = React.useMemo(() => {
+    if (duration <= 0) {
+      return { scale: 1.1, offset: 0, depth: 1, normalized: 0.8 }
+    }
+    const safeStart = THREE.MathUtils.clamp(trimStart, 0, duration)
+    const safeEnd = THREE.MathUtils.clamp(trimEnd, 0, duration)
+    const length = Math.max(0, safeEnd - safeStart)
+    const normalizedLength = duration > 0 ? length / duration : 1
+    const center = duration > 0 ? (safeStart + length / 2) / duration : 0.5
+    const offset = (center - 0.5) * 1.6
+    const scale = 0.6 + normalizedLength * 1.25
+    const depth = 0.8 + normalizedLength * 0.9
+    return { scale, offset, depth, normalized: normalizedLength }
+  }, [trimStart, trimEnd, duration])
+
+  const envelopeTarget = React.useMemo(() => {
+    const attackNorm = THREE.MathUtils.clamp(attack, 0, 1)
+    const decayNorm = THREE.MathUtils.clamp(decay, 0, 2.5) / 2.5
+    return 0.85 + decayNorm * 0.7 - attackNorm * 0.35
+  }, [attack, decay])
+
+  const emissiveColor = React.useMemo(() => new THREE.Color(color || "#38bdf8"), [color])
+
+  React.useEffect(() => {
+    if (!materialRef.current) return
+    materialRef.current.color.copy(emissiveColor.clone().multiplyScalar(0.65))
+    materialRef.current.emissive.copy(emissiveColor)
+  }, [emissiveColor])
+
+  const animated = React.useRef({
+    scale: targetRange.scale,
+    offset: targetRange.offset,
+    depth: targetRange.depth,
+    envelope: envelopeTarget,
+  })
+
+  React.useEffect(() => {
+    animated.current = {
+      scale: targetRange.scale,
+      offset: targetRange.offset,
+      depth: targetRange.depth,
+      envelope: envelopeTarget,
+    }
+  }, [targetRange.scale, targetRange.offset, targetRange.depth, envelopeTarget])
+
+  useFrame((state, delta) => {
+    if (!meshRef.current || !materialRef.current) return
+    const lerpFactor = Math.min(1, delta * 4.5)
+    animated.current.scale = THREE.MathUtils.lerp(
+      animated.current.scale,
+      targetRange.scale,
+      lerpFactor
+    )
+    animated.current.offset = THREE.MathUtils.lerp(
+      animated.current.offset,
+      targetRange.offset,
+      lerpFactor
+    )
+    animated.current.depth = THREE.MathUtils.lerp(
+      animated.current.depth,
+      targetRange.depth,
+      lerpFactor
+    )
+    animated.current.envelope = THREE.MathUtils.lerp(
+      animated.current.envelope,
+      envelopeTarget,
+      Math.min(1, delta * 3.5)
+    )
+
+    meshRef.current.scale.set(animated.current.scale, animated.current.envelope, animated.current.depth)
+    meshRef.current.position.x = animated.current.offset
+    meshRef.current.rotation.z = Math.sin(state.clock.elapsedTime * 0.35) * 0.05
+
+    const emissivePulse = 0.45 + Math.sin(state.clock.elapsedTime * 2.1) * 0.05
+    materialRef.current.emissiveIntensity = emissivePulse + targetRange.normalized * 0.6
+    materialRef.current.opacity = 0.7 + targetRange.normalized * 0.2
+  })
+
+  return (
+    <group position={[0, -0.6, 0]}>
+      <mesh
+        ref={meshRef}
+        geometry={geometry}
+        rotation={[-Math.PI / 3.2, 0, 0]}
+        castShadow
+        receiveShadow
+      >
+        <meshStandardMaterial
+          ref={materialRef}
+          roughness={0.4}
+          metalness={0.25}
+          transparent
+          opacity={0.85}
+          emissiveIntensity={0.6}
+        />
+      </mesh>
+      <WaveformHalo color={color} intensity={targetRange.normalized} />
+    </group>
+  )
+}
+
+function WaveformAura({ color }: { color: string }) {
+  const auraColor = React.useMemo(() => new THREE.Color(color || "#38bdf8"), [color])
+  return (
+    <mesh position={[0, -1.6, -1]} rotation={[Math.PI / 2, 0, 0]}>
+      <planeGeometry args={[12, 12, 1, 1]} />
+      <meshBasicMaterial
+        color={auraColor.clone().multiplyScalar(0.2)}
+        opacity={0.35}
+        transparent
+      />
+    </mesh>
+  )
+}
+
+function WaveformHalo({ color, intensity }: { color: string; intensity: number }) {
+  const haloMaterial = React.useRef<THREE.MeshBasicMaterial>(null)
+  const haloColor = React.useMemo(() => new THREE.Color(color || "#38bdf8"), [color])
+
+  useFrame((state, delta) => {
+    if (!haloMaterial.current) return
+    const pulse = Math.sin(state.clock.elapsedTime * 1.8) * 0.2 + 0.8
+    const targetOpacity = THREE.MathUtils.clamp(intensity * 0.6 + 0.2, 0.1, 0.85)
+    haloMaterial.current.opacity = THREE.MathUtils.lerp(
+      haloMaterial.current.opacity,
+      targetOpacity * pulse,
+      Math.min(1, delta * 2.5)
+    )
+  })
+
+  return (
+    <mesh position={[0, -0.05, 0]}>
+      <ringGeometry args={[1.6, 2.3, 64]} />
+      <meshBasicMaterial
+        ref={haloMaterial}
+        color={haloColor}
+        transparent
+        opacity={0.4}
+        blending={THREE.AdditiveBlending}
+      />
+    </mesh>
+  )
+}
+
+type HudToggleRowProps = {
+  id: string
+  label: string
+  checked: boolean
+  color: string
+  onChange: (checked: boolean) => void
+}
+
+function HudToggleRow({ id, label, checked, color, onChange }: HudToggleRowProps) {
+  return (
+    <div className="relative overflow-hidden rounded-lg border border-white/10 bg-slate-950/40 px-3 py-2">
+      <div className="pointer-events-none absolute inset-0">
+        <HudStateIndicator active={checked} color={color} />
+      </div>
+      <div className="relative z-10 flex items-center gap-3 text-[11px] normal-case text-white">
+        <Checkbox
+          id={id}
+          checked={checked}
+          onCheckedChange={value => onChange(value === true)}
+          className="data-[state=checked]:border-brand-primary data-[state=checked]:bg-brand-primary/60"
+        />
+        <Label htmlFor={id} className="cursor-pointer text-white">
+          {label}
+        </Label>
+        <span className="ml-auto text-[10px] uppercase tracking-[0.45em] text-brand-light/70">
+          {checked ? 'ACTIVE' : 'STANDBY'}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function HudStateIndicator({ active, color }: { active: boolean; color: string }) {
+  return (
+    <Canvas
+      gl={{ antialias: true, alpha: true }}
+      camera={{ position: [0, 0, 1.6], fov: 35 }}
+      frameloop="always"
+      dpr={[1, 1.5]}
+    >
+      <HudShaderPlane active={active} color={color} />
+    </Canvas>
+  )
+}
+
+type HudShaderPlaneProps = {
+  active: boolean
+  color: string
+}
+
+function HudShaderPlane({ active, color }: HudShaderPlaneProps) {
+  const materialRef = React.useRef<THREE.ShaderMaterial>(null)
+  const progress = React.useRef(active ? 1 : 0)
+  const target = React.useRef(active ? 1 : 0)
+
+  React.useEffect(() => {
+    target.current = active ? 1 : 0
+  }, [active])
+
+  const onColor = React.useMemo(() => new THREE.Color(color || '#38bdf8'), [color])
+  const offColor = React.useMemo(() => onColor.clone().lerp(new THREE.Color('#0f172a'), 0.8), [onColor])
+
+  useFrame((_, delta) => {
+    if (!materialRef.current) return
+    progress.current = THREE.MathUtils.lerp(
+      progress.current,
+      target.current,
+      Math.min(1, delta * 5)
+    )
+    const uniforms = materialRef.current.uniforms as HudUniforms
+    uniforms.uProgress.value = progress.current
+    uniforms.uTime.value += delta
+  })
+
+  React.useEffect(() => {
+    if (!materialRef.current) return
+    const uniforms = materialRef.current.uniforms as HudUniforms
+    uniforms.uOnColor.value.copy(onColor)
+    uniforms.uOffColor.value.copy(offColor)
+  }, [onColor, offColor])
+
+  return (
+    <mesh>
+      <planeGeometry args={[2.6, 1.4, 64, 32]} />
+      <shaderMaterial
+        ref={materialRef}
+        transparent
+        depthWrite={false}
+        uniforms={{
+          uProgress: { value: progress.current },
+          uOnColor: { value: onColor.clone() },
+          uOffColor: { value: offColor.clone() },
+          uTime: { value: 0 },
+        }}
+        vertexShader={HUD_VERTEX_SHADER}
+        fragmentShader={HUD_FRAGMENT_SHADER}
+      />
+    </mesh>
+  )
+}
+
+type HudUniforms = {
+  uProgress: { value: number }
+  uOnColor: { value: THREE.Color }
+  uOffColor: { value: THREE.Color }
+  uTime: { value: number }
+}
+
+const HUD_VERTEX_SHADER = `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`
+
+const HUD_FRAGMENT_SHADER = `
+  varying vec2 vUv;
+  uniform float uProgress;
+  uniform float uTime;
+  uniform vec3 uOnColor;
+  uniform vec3 uOffColor;
+
+  float vignette(vec2 uv) {
+    float dist = distance(uv, vec2(0.5));
+    return smoothstep(0.9, 0.2, dist);
+  }
+
+  void main() {
+    float progress = smoothstep(0.0, 1.0, uProgress);
+    vec3 baseColor = mix(uOffColor, uOnColor, progress);
+    float scan = sin((vUv.y + uTime * 0.6) * 16.0) * 0.5 + 0.5;
+    float gridX = sin((vUv.x + uTime * 0.3) * 24.0) * 0.5 + 0.5;
+    float gridY = sin((vUv.y + uTime * 0.25) * 24.0) * 0.5 + 0.5;
+    float grid = smoothstep(0.4, 1.0, gridX * gridY);
+    float glow = sin(uTime * 4.0 + vUv.y * 8.0) * 0.5 + 0.5;
+    vec3 hud = baseColor + (grid * 0.35 + glow * 0.2 + scan * 0.15) * (baseColor * 0.6 + vec3(0.1, 0.2, 0.35));
+    float alpha = mix(0.18, 0.75, progress);
+    alpha *= vignette(vUv);
+    alpha += scan * 0.08;
+    gl_FragColor = vec4(hud, clamp(alpha, 0.05, 0.9));
+  }
+`
+
+function generateWaveformGeometry(peaks: number[]) {
+  if (peaks.length < 2) {
+    const fallback = new THREE.BoxGeometry(1.8, 0.4, 0.6)
+    fallback.center()
+    fallback.rotateX(Math.PI / 2)
+    return fallback
+  }
+
+  const shape = new THREE.Shape()
+  const length = peaks.length
+  const step = length > 1 ? 2 / (length - 1) : 0
+  const baseline = -0.4
+
+  shape.moveTo(-1, baseline)
+  for (let i = 0; i < length; i += 1) {
+    const x = -1 + step * i
+    const value = THREE.MathUtils.clamp(peaks[i] ?? 0, -1, 1)
+    const amplitude = Math.max(Math.abs(value), 0.05)
+    const y = baseline + amplitude * 1.2
+    shape.lineTo(x, y)
+  }
+  shape.lineTo(1, baseline)
+
+  for (let i = length - 1; i >= 0; i -= 1) {
+    const x = -1 + step * i
+    const value = THREE.MathUtils.clamp(peaks[i] ?? 0, -1, 1)
+    const amplitude = Math.max(Math.abs(value), 0.05)
+    const y = baseline - amplitude * 1.1
+    shape.lineTo(x, y)
+  }
+
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    depth: 0.6,
+    bevelEnabled: false,
+    steps: length,
+  })
+
+  geometry.center()
+  geometry.rotateX(Math.PI / 2)
+
+  return geometry
 }
