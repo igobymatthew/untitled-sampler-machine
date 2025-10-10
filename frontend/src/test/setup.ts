@@ -1,5 +1,10 @@
 import '@testing-library/jest-dom';
 import { vi } from 'vitest';
+vi.mock('@react-three/fiber', () => ({
+  __esModule: true,
+  Canvas: () => null,
+  useFrame: vi.fn(),
+}));
 
 Object.defineProperty(window, 'innerWidth', {
   writable: true,

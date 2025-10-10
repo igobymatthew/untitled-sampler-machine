@@ -1,6 +1,8 @@
 import { render, fireEvent, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Mock } from 'vitest'
+import type { Pad } from '@shared/types'
+
 import { PadGrid } from './PadGrid'
 import { useStore } from '../store'
 import { decodeArrayBuffer } from '../audio/SamplePlayer'
@@ -43,15 +45,39 @@ describe('PadGrid', () => {
     setPad = vi.fn()
     setSelectedPad = vi.fn()
 
-    const pads = [
+    const pads: Pad[] = [
       {
         id: 'pad-1',
         name: 'Pad 1',
+        color: '#ff00ff',
         gain: 1,
         attack: 0,
-        decay: 0,
+        decay: 0.4,
         startOffset: 0,
+        trimStart: 0,
+        trimEnd: null,
         loop: false,
+        muted: false,
+        reverbPreset: 'off',
+        reverbMix: 0,
+        noiseGate: {
+          enabled: false,
+          threshold: -60,
+          attack: 10,
+          release: 200,
+        },
+        eq: {
+          '31': 0,
+          '62': 0,
+          '125': 0,
+          '250': 0,
+          '500': 0,
+          '1k': 0,
+          '2k': 0,
+          '4k': 0,
+          '8k': 0,
+          '16k': 0,
+        },
         sample: undefined,
       },
     ]
