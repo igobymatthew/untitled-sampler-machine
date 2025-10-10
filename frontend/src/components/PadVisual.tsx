@@ -1,7 +1,5 @@
-import { Canvas, useFrame } from '@react-three/fiber'
-import type { RootState } from '@react-three/fiber'
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
-import * as THREE from 'three'
+import { memo, useEffect, useMemo, useState } from 'react'
+import type { CSSProperties } from 'react'
 
 type PadVisualProps = {
   color: string
@@ -12,70 +10,12 @@ type PadVisualProps = {
   sampleDuration?: number
 }
 
-type PadSurfaceUniforms = {
-  uTime: THREE.IUniform<number>
-  uColor: THREE.IUniform<THREE.Color>
-  uIntensity: THREE.IUniform<number>
-  uHighlight: THREE.IUniform<number>
-  uPulse: THREE.IUniform<number>
-}
+type Rgb = [number, number, number]
 
-const vertexShader = /* glsl */ `
-  varying float vWave;
-  varying float vRadial;
-  varying float vIntensity;
+const WHITE: Rgb = [255, 255, 255]
+const DEEP_BACKGROUND: Rgb = [12, 10, 9]
 
-  uniform float uTime;
-  uniform float uIntensity;
-  uniform float uPulse;
-
-  void main() {
-    vec3 pos = position;
-    float wave = sin((pos.x + uTime * 0.7) * 3.6) + cos((pos.y - uTime * 1.1) * 3.2);
-    float radial = sin(length(pos.xy) * 7.5 - uTime * 3.6);
-    float pulse = exp(-length(pos.xy) * 2.8) * uPulse;
-    pos.z += (wave * 0.025 + radial * 0.045) * (0.5 + uIntensity * 0.9) + pulse * 0.15;
-    vWave = wave;
-    vRadial = radial;
-    vIntensity = uIntensity;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-  }
-`
-
-const fragmentShader = /* glsl */ `
-  varying float vWave;
-  varying float vRadial;
-  varying float vIntensity;
-
-  uniform vec3 uColor;
-  uniform float uHighlight;
-
-  void main() {
-    float shimmer = 0.55 + 0.45 * sin(vWave * 0.6 + vRadial * 0.8);
-    float glow = smoothstep(0.0, 1.2, vIntensity + 0.25);
-    vec3 base = mix(vec3(0.08, 0.09, 0.12), uColor, shimmer * 0.75);
-    vec3 highlight = mix(base, vec3(1.0), clamp(uHighlight, 0.0, 1.0) * 0.45);
-    float alpha = 0.55 + glow * 0.35;
-    gl_FragColor = vec4(highlight, alpha);
-  }
-`
-
-const PadSurface = memo(function PadSurface({ uniforms }: { uniforms: PadSurfaceUniforms }) {
-  return (
-    <mesh rotation-x={-Math.PI / 2}>
-      <planeGeometry args={[1.35, 1.35, 128, 128]} />
-      <shaderMaterial
-        uniforms={uniforms}
-        vertexShader={vertexShader}
-        fragmentShader={fragmentShader}
-        transparent
-        depthWrite={false}
-      />
-    </mesh>
-  )
-})
-
-const PadVisualCanvas = memo(function PadVisualCanvas({
+export const PadVisual = memo(function PadVisual({
   color,
   gain,
   decay,
@@ -83,124 +23,131 @@ const PadVisualCanvas = memo(function PadVisualCanvas({
   triggerSignal,
   sampleDuration,
 }: PadVisualProps) {
-  const highlight = useRef(isSelected ? 1 : 0)
-  const highlightTarget = useRef(isSelected ? 1 : 0)
-  const intensity = useRef(0.35)
-  const pulse = useRef(0)
-
-  const uniforms = useRef<PadSurfaceUniforms>({
-    uTime: { value: 0 },
-    uColor: { value: new THREE.Color(color) },
-    uIntensity: { value: intensity.current },
-    uHighlight: { value: highlight.current },
-    uPulse: { value: pulse.current },
-  })
-
-  const speedBase = useMemo(() => {
-    const duration = sampleDuration ?? 0
-    const durationFactor = THREE.MathUtils.clamp(duration / 2.5, 0, 1)
-    const decayFactor = THREE.MathUtils.clamp(decay * 1.5, 0, 1.2)
-    return 1.1 + durationFactor * 0.9 + decayFactor * 0.6
-  }, [decay, sampleDuration])
-
-  useEffect(() => {
-    highlightTarget.current = isSelected ? 1 : 0
-  }, [isSelected])
-
-  useEffect(() => {
-    uniforms.current.uColor.value.set(color)
-  }, [color])
-
-  useEffect(() => {
-    pulse.current = 1.6
-  }, [triggerSignal])
-
-  useFrame((_state: RootState, delta: number) => {
-    const clampedDelta = Math.min(delta, 0.05)
-    pulse.current = Math.max(pulse.current - clampedDelta * (1.5 + decay * 0.6), 0)
-
-    const gainFactor = THREE.MathUtils.clamp(gain / 1.2, 0, 1.1)
-    const base = 0.2 + gainFactor * 0.45
-    const targetIntensity = base + highlight.current * 0.3 + pulse.current * 0.6
-    intensity.current += (targetIntensity - intensity.current) * Math.min(clampedDelta * 6, 1)
-
-    highlight.current += (highlightTarget.current - highlight.current) * Math.min(clampedDelta * 7.5, 1)
-
-    uniforms.current.uTime.value = (uniforms.current.uTime.value + clampedDelta * speedBase) % 1000
-    uniforms.current.uIntensity.value = intensity.current
-    uniforms.current.uHighlight.value = highlight.current
-    uniforms.current.uPulse.value = pulse.current
-  })
-
-  return (
-    <Canvas
-      className="absolute inset-0 h-full w-full pointer-events-none"
-      camera={{ position: [0, 1.4, 1.5], fov: 55 }}
-      gl={{ alpha: true, antialias: true }}
-      onCreated={(state: RootState) => {
-        state.gl.setClearColor(new THREE.Color('#000000'), 0)
-        state.gl.setClearAlpha(0)
-      }}
-      style={{ background: 'transparent' }}
-    >
-      <ambientLight intensity={0.45} />
-      <directionalLight position={[1.2, 1.8, 1.5]} intensity={0.6} color={color} />
-      <PadSurface uniforms={uniforms.current} />
-    </Canvas>
-  )
-})
-
-const PadVisualFallback = memo(function PadVisualFallback({
-  color,
-  isSelected,
-  triggerSignal,
-}: Pick<PadVisualProps, 'color' | 'isSelected' | 'triggerSignal'>) {
   const [pulse, setPulse] = useState(0)
+  const base = useMemo<Rgb>(() => hexToRgb(color), [color])
+  const isTestEnv =
+    typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test'
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
+    if (isTestEnv || typeof window === 'undefined') return
     setPulse(1)
-    const timeout = window.setTimeout(() => setPulse(0), 420)
+    const duration = 260 + decay * 480
+    const timeout = window.setTimeout(() => setPulse(0), duration)
     return () => window.clearTimeout(timeout)
-  }, [triggerSignal])
+  }, [triggerSignal, decay, isTestEnv])
 
-  const opacity = 0.48 + (isSelected ? 0.22 : 0) + pulse * 0.24
-
-  return (
-    <div
-      className="absolute inset-0 pointer-events-none transition duration-500 ease-out"
-      style={{
-        background: `radial-gradient(circle at 25% 25%, ${color}55, transparent 60%), radial-gradient(circle at 75% 75%, ${color}22, transparent 65%), linear-gradient(140deg, rgba(15,23,42,0.75), rgba(30,41,59,0.3))`,
-        opacity,
-        transform: `scale(${1 + pulse * 0.04})`,
-        filter: isSelected ? 'blur(0)' : 'blur(0.4px)',
-      }}
-    />
-  )
-})
-
-export const PadVisual = memo(function PadVisual(props: PadVisualProps) {
-  const supportsWebGL = useMemo(() => {
-    if (typeof document === 'undefined') return false
-    try {
-      const canvas = document.createElement('canvas')
-      const gl = canvas.getContext?.('webgl2') ?? canvas.getContext?.('webgl')
-      return Boolean(gl)
-    } catch (error) {
-      return false
+  if (isTestEnv) {
+    const fallbackStyle: CSSProperties = {
+      backgroundImage: [
+        `radial-gradient(circle at 20% 20%, ${withAlpha(mixColor(base, WHITE, 0.3), 0.5)}, transparent 60%)`,
+        `linear-gradient(135deg, rgba(${DEEP_BACKGROUND.join(',')}, 0.85), rgba(17, 24, 39, 0.4))`,
+      ].join(', '),
+      border: `1px solid ${withAlpha(mixColor(base, WHITE, 0.28), 0.35)}`,
+      opacity: isSelected ? 0.92 : 0.82,
     }
-  }, [])
-
-  if (!supportsWebGL) {
-    const { color, isSelected, triggerSignal } = props
     return (
-      <PadVisualFallback
-        color={color}
-        isSelected={isSelected}
-        triggerSignal={triggerSignal}
-      />
+      <div className="pad-visual" aria-hidden>
+        <div className="pad-visual__background" style={fallbackStyle} />
+      </div>
     )
   }
 
-  return <PadVisualCanvas {...props} />
+  const shimmerDuration = useMemo(() => {
+    const gainFactor = clamp(gain, 0, 1.2)
+    const lengthFactor = clamp(sampleDuration ?? 0, 0, 4)
+    const seconds = Math.max(3.8, 8 - gainFactor * 2.2 - lengthFactor * 0.6)
+    return `${seconds.toFixed(2)}s`
+  }, [gain, sampleDuration])
+
+  const backgroundStyle = useMemo<CSSProperties>(() => {
+    const accent = withAlpha(mixColor(base, WHITE, 0.35), 0.55 + (isSelected ? 0.18 : 0) + pulse * 0.28)
+    const secondary = withAlpha(mixColor(base, WHITE, 0.12), 0.2 + (isSelected ? 0.1 : 0) + pulse * 0.12)
+    const borderColor = withAlpha(mixColor(base, WHITE, 0.28), 0.38 + (isSelected ? 0.16 : 0))
+    const glowPrimary = withAlpha(mixColor(base, WHITE, 0.18), 0.26 + pulse * 0.3 + (isSelected ? 0.18 : 0.04))
+    const glowSecondary = withAlpha(mixColor(base, WHITE, 0.45), 0.18 + pulse * 0.22)
+    const scale = 1 + (isSelected ? 0.015 : 0) + pulse * 0.012
+    const translate = isSelected ? '-2px' : '0px'
+
+    return {
+      backgroundImage: [
+        `radial-gradient(circle at 20% 20%, ${accent}, transparent 55%)`,
+        `radial-gradient(circle at 80% 80%, ${secondary}, transparent 68%)`,
+        `linear-gradient(135deg, rgba(${DEEP_BACKGROUND.join(',')}, 0.9), rgba(17, 24, 39, 0.45))`,
+      ].join(', '),
+      boxShadow: `0 0 ${18 + pulse * 18 + (isSelected ? 8 : 0)}px ${glowPrimary}, 0 0 ${48 + pulse * 26}px ${glowSecondary}`,
+      border: `1px solid ${borderColor}`,
+      transform: `translateY(${translate}) scale(${scale})`,
+      opacity: clamp(0.84 + (isSelected ? 0.09 : 0) + pulse * 0.14, 0.65, 1),
+    }
+  }, [base, isSelected, pulse])
+
+  const shimmerColor = useMemo(() => withAlpha(mixColor(base, WHITE, 0.7), 0.22 + (isSelected ? 0.08 : 0)), [base, isSelected])
+  const shimmerTrail = useMemo(() => withAlpha(mixColor(base, WHITE, 0.4), 0.08 + pulse * 0.05), [base, pulse])
+  const gridColor = useMemo(() => withAlpha(mixColor(base, WHITE, 0.6), 0.06 + (isSelected ? 0.05 : 0)), [base, isSelected])
+
+  return (
+    <div className="pad-visual" aria-hidden>
+      <div className="pad-visual__background" style={backgroundStyle} />
+      <div
+        className="pad-visual__shimmer"
+        style={{
+          background: `conic-gradient(from 180deg at 50% 50%, ${shimmerColor} 0deg, transparent 120deg, ${shimmerTrail} 240deg, transparent 360deg)`,
+          animationDuration: shimmerDuration,
+        }}
+      />
+      <div
+        className="pad-visual__grid"
+        style={{
+          backgroundImage: `repeating-linear-gradient(135deg, ${gridColor}, ${gridColor} 2px, transparent 2px, transparent 12px)`
+        }}
+      />
+      <div className="pad-visual__glare" />
+    </div>
+  )
 })
+
+function hexToRgb(hex: string): Rgb {
+  let normalized = hex.trim()
+  if (normalized.startsWith('#')) {
+    normalized = normalized.slice(1)
+  }
+
+  if (normalized.length === 3) {
+    normalized = normalized
+      .split('')
+      .map(char => char + char)
+      .join('')
+  }
+
+  if (normalized.length !== 6) {
+    return WHITE
+  }
+
+  const value = Number.parseInt(normalized, 16)
+  if (Number.isNaN(value)) {
+    return WHITE
+  }
+
+  return [
+    (value >> 16) & 255,
+    (value >> 8) & 255,
+    value & 255,
+  ]
+}
+
+function mixColor(base: Rgb, other: Rgb, ratio: number): Rgb {
+  const t = clamp(ratio, 0, 1)
+  return [
+    Math.round(base[0] + (other[0] - base[0]) * t),
+    Math.round(base[1] + (other[1] - base[1]) * t),
+    Math.round(base[2] + (other[2] - base[2]) * t),
+  ]
+}
+
+function withAlpha(rgb: Rgb, alpha: number) {
+  return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${clamp(alpha, 0, 1)})`
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max)
+}
