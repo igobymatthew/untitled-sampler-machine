@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Slider } from '@/components/ui/slider'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Canvas, useFrame } from '@react-three/fiber'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import {
   Select,
@@ -253,7 +253,10 @@ function WaveformPreview({
       className="relative w-full overflow-hidden rounded-2xl border border-white/10 bg-white/5"
       style={{ height: '8rem', minHeight: '8rem' }}
     >
-      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0 h-full w-full rounded-[inherit]"
+      />
       {peaks.length === 0 && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs text-white/40">
           Load a sample to visualize its waveform
@@ -794,6 +797,7 @@ function WaveformBackground({
     <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
       <Canvas
         className="absolute inset-0"
+        style={{ borderRadius: 'inherit' }}
         gl={{ antialias: true, alpha: true }}
         camera={{ position: [0, 1.6, 3.6], fov: 42 }}
         dpr={[1, 1.5]}
@@ -828,6 +832,20 @@ type WaveformSceneProps = {
 }
 
 function WaveformScene({ peaks, color, trimStart, trimEnd, duration, attack, decay }: WaveformSceneProps) {
+  const { size } = useThree()
+  const { horizontalScale, depthScale } = React.useMemo(() => {
+    const width = Math.max(size.width, 1)
+    const height = Math.max(size.height, 1)
+    const aspect = width / height
+    if (aspect >= 1) {
+      const clamped = THREE.MathUtils.clamp(aspect, 1, 3.5)
+      return { horizontalScale: clamped, depthScale: 1 }
+    }
+    const inverse = height / width
+    const clamped = THREE.MathUtils.clamp(inverse, 1, 3.5)
+    return { horizontalScale: 1, depthScale: clamped }
+  }, [size.height, size.width])
+
   return (
     <>
       <WaveformLights color={color} />
@@ -839,8 +857,10 @@ function WaveformScene({ peaks, color, trimStart, trimEnd, duration, attack, dec
         duration={duration}
         attack={attack}
         decay={decay}
+        horizontalScale={horizontalScale}
+        depthScale={depthScale}
       />
-      <WaveformAura color={color} />
+      <WaveformAura color={color} horizontalScale={horizontalScale} depthScale={depthScale} />
     </>
   )
 }
@@ -873,9 +893,21 @@ type WaveformMeshProps = {
   duration: number
   attack: number
   decay: number
+  horizontalScale: number
+  depthScale: number
 }
 
-function WaveformMesh({ peaks, color, trimStart, trimEnd, duration, attack, decay }: WaveformMeshProps) {
+function WaveformMesh({
+  peaks,
+  color,
+  trimStart,
+  trimEnd,
+  duration,
+  attack,
+  decay,
+  horizontalScale,
+  depthScale,
+}: WaveformMeshProps) {
   const meshRef = React.useRef<THREE.Mesh>(null)
   const materialRef = React.useRef<THREE.MeshStandardMaterial>(null)
 
@@ -952,8 +984,12 @@ function WaveformMesh({ peaks, color, trimStart, trimEnd, duration, attack, deca
       Math.min(1, delta * 3.5)
     )
 
-    meshRef.current.scale.set(animated.current.scale, animated.current.envelope, animated.current.depth)
-    meshRef.current.position.x = animated.current.offset
+    meshRef.current.scale.set(
+      animated.current.scale * horizontalScale,
+      animated.current.envelope,
+      animated.current.depth * depthScale,
+    )
+    meshRef.current.position.x = animated.current.offset * horizontalScale
     meshRef.current.rotation.z = Math.sin(state.clock.elapsedTime * 0.35) * 0.05
 
     const emissivePulse = 0.45 + Math.sin(state.clock.elapsedTime * 2.1) * 0.05
@@ -979,15 +1015,31 @@ function WaveformMesh({ peaks, color, trimStart, trimEnd, duration, attack, deca
           emissiveIntensity={0.6}
         />
       </mesh>
-      <WaveformHalo color={color} intensity={targetRange.normalized} />
+      <WaveformHalo
+        color={color}
+        intensity={targetRange.normalized}
+        horizontalScale={horizontalScale}
+      />
     </group>
   )
 }
 
-function WaveformAura({ color }: { color: string }) {
+function WaveformAura({
+  color,
+  horizontalScale,
+  depthScale,
+}: {
+  color: string
+  horizontalScale: number
+  depthScale: number
+}) {
   const auraColor = React.useMemo(() => new THREE.Color(color || "#38bdf8"), [color])
   return (
-    <mesh position={[0, -1.6, -1]} rotation={[Math.PI / 2, 0, 0]}>
+    <mesh
+      position={[0, -1.6, -1]}
+      rotation={[Math.PI / 2, 0, 0]}
+      scale={[horizontalScale, depthScale, 1]}
+    >
       <planeGeometry args={[12, 12, 1, 1]} />
       <meshBasicMaterial
         color={auraColor.clone().multiplyScalar(0.2)}
@@ -998,7 +1050,15 @@ function WaveformAura({ color }: { color: string }) {
   )
 }
 
-function WaveformHalo({ color, intensity }: { color: string; intensity: number }) {
+function WaveformHalo({
+  color,
+  intensity,
+  horizontalScale,
+}: {
+  color: string
+  intensity: number
+  horizontalScale: number
+}) {
   const haloMaterial = React.useRef<THREE.MeshBasicMaterial>(null)
   const haloColor = React.useMemo(() => new THREE.Color(color || "#38bdf8"), [color])
 
@@ -1014,7 +1074,7 @@ function WaveformHalo({ color, intensity }: { color: string; intensity: number }
   })
 
   return (
-    <mesh position={[0, -0.05, 0]}>
+    <mesh position={[0, -0.05, 0]} scale={[horizontalScale, 1, 1]}>
       <ringGeometry args={[1.6, 2.3, 64]} />
       <meshBasicMaterial
         ref={haloMaterial}
